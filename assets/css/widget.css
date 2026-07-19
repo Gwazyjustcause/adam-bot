@@ -1,0 +1,641 @@
+/**
+ * ADAM BOT public widget.
+ * All rules are scoped to .adam-bot to avoid affecting the active theme.
+ */
+
+.adam-bot {
+	--adam-bot-brand: #a8d52a;
+	--adam-bot-brand-strong: #87b51d;
+	--adam-bot-ink: #17231c;
+	--adam-bot-muted: #607067;
+	--adam-bot-surface: #ffffff;
+	--adam-bot-surface-soft: #f3f6f2;
+	--adam-bot-border: #dfe7dc;
+	--adam-bot-user: #243c2c;
+	--adam-bot-user-text: #ffffff;
+	--adam-bot-focus: #395fdd;
+	--adam-bot-launcher-dot: #17231c;
+	--adam-bot-shadow: 0 24px 70px rgba(15, 31, 21, 0.22), 0 8px 24px rgba(15, 31, 21, 0.13);
+	font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	font-size: 16px;
+	line-height: 1.5;
+	position: relative;
+	z-index: 999999;
+}
+
+.adam-bot,
+.adam-bot *,
+.adam-bot *::before,
+.adam-bot *::after {
+	box-sizing: border-box;
+}
+
+.adam-bot button,
+.adam-bot textarea {
+	font: inherit;
+}
+
+.adam-bot button {
+	-webkit-tap-highlight-color: transparent;
+}
+
+.adam-bot__launcher {
+	align-items: center;
+	animation: adam-bot-launcher-arrive 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+	background: linear-gradient(145deg, #b8e63c, var(--adam-bot-brand-strong));
+	border: 0;
+	border-radius: 999px;
+	bottom: max(1.5rem, env(safe-area-inset-bottom));
+	box-shadow: 0 12px 30px rgba(76, 111, 27, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+	color: var(--adam-bot-ink);
+	cursor: pointer;
+	display: flex;
+	height: 64px;
+	justify-content: center;
+	left: max(1.5rem, env(safe-area-inset-left));
+	padding: 0;
+	position: fixed;
+	transition: box-shadow 180ms ease, opacity 180ms ease, transform 180ms ease;
+	width: 64px;
+	z-index: 2;
+}
+
+.adam-bot__launcher:hover {
+	box-shadow: 0 16px 36px rgba(76, 111, 27, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+	transform: translateY(-3px) scale(1.03);
+}
+
+.adam-bot__launcher:active {
+	transform: translateY(-1px) scale(0.98);
+}
+
+.adam-bot__launcher:focus-visible,
+.adam-bot__close:focus-visible,
+.adam-bot__suggestion:focus-visible,
+.adam-bot__send:focus-visible,
+.adam-bot__input:focus-visible {
+	outline: 3px solid var(--adam-bot-focus);
+	outline-offset: 3px;
+}
+
+.adam-bot__launcher-icon {
+	filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.25));
+}
+
+.adam-bot__launcher-pulse {
+	background: #f8fff0;
+	border: 2px solid var(--adam-bot-brand-strong);
+	border-radius: 50%;
+	height: 13px;
+	position: absolute;
+	right: 1px;
+	top: 1px;
+	width: 13px;
+}
+
+.adam-bot__launcher-pulse::after {
+	animation: adam-bot-pulse 2.4s ease-out infinite;
+	border: 2px solid var(--adam-bot-brand);
+	border-radius: inherit;
+	content: "";
+	inset: -2px;
+	position: absolute;
+}
+
+.adam-bot--open .adam-bot__launcher {
+	opacity: 0;
+	pointer-events: none;
+	transform: translateY(12px) scale(0.85);
+}
+
+.adam-bot__panel {
+	background: var(--adam-bot-surface);
+	border: 1px solid rgba(87, 108, 94, 0.18);
+	border-radius: 24px;
+	bottom: max(1.5rem, env(safe-area-inset-bottom));
+	box-shadow: var(--adam-bot-shadow);
+	color: var(--adam-bot-ink);
+	display: grid;
+	grid-template-rows: auto minmax(0, 1fr) auto;
+	height: min(620px, calc(100dvh - 7rem));
+	left: max(1.5rem, env(safe-area-inset-left));
+	overflow: hidden;
+	opacity: 0;
+	position: fixed;
+	transform: translateY(24px) scale(0.97);
+	transform-origin: bottom left;
+	transition: opacity 220ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+	visibility: hidden;
+	width: min(380px, calc(100vw - 3rem));
+	z-index: 3;
+}
+
+.adam-bot__panel[hidden] {
+	display: none;
+}
+
+.adam-bot--open .adam-bot__panel {
+	opacity: 1;
+	transform: translateY(0) scale(1);
+	visibility: visible;
+}
+
+.adam-bot__header {
+	align-items: center;
+	background: linear-gradient(135deg, #17231c 0%, #253b2c 70%, #314d39 100%);
+	color: #ffffff;
+	display: grid;
+	gap: 0.75rem;
+	grid-template-columns: auto minmax(0, 1fr) auto auto;
+	min-height: 88px;
+	padding: 1rem 1rem 1rem 1.125rem;
+	position: relative;
+}
+
+.adam-bot__header::after {
+	background: linear-gradient(90deg, var(--adam-bot-brand), transparent 82%);
+	bottom: 0;
+	content: "";
+	height: 2px;
+	left: 0;
+	position: absolute;
+	right: 0;
+}
+
+.adam-bot__brand-mark {
+	align-items: center;
+	background: rgba(255, 255, 255, 0.1);
+	border: 1px solid rgba(255, 255, 255, 0.14);
+	border-radius: 14px;
+	color: var(--adam-bot-brand);
+	display: flex;
+	height: 48px;
+	justify-content: center;
+	width: 48px;
+}
+
+.adam-bot__brand-copy {
+	min-width: 0;
+}
+
+.adam-bot__title,
+.adam-bot__subtitle,
+.adam-bot__composer p,
+.adam-bot__welcome-copy p,
+.adam-bot__bubble {
+	margin: 0;
+}
+
+.adam-bot__title {
+	color: #ffffff;
+	font-size: 1rem;
+	font-weight: 750;
+	letter-spacing: 0.035em;
+	line-height: 1.35;
+}
+
+.adam-bot__subtitle {
+	color: rgba(255, 255, 255, 0.72);
+	font-size: 0.75rem;
+	line-height: 1.35;
+	margin-top: 0.12rem;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.adam-bot__status {
+	background: #a8d52a;
+	border: 2px solid #253b2c;
+	border-radius: 50%;
+	height: 10px;
+	width: 10px;
+}
+
+.adam-bot__close {
+	align-items: center;
+	background: rgba(255, 255, 255, 0.08);
+	border: 0;
+	border-radius: 10px;
+	color: rgba(255, 255, 255, 0.82);
+	cursor: pointer;
+	display: flex;
+	height: 38px;
+	justify-content: center;
+	padding: 0;
+	transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+	width: 38px;
+}
+
+.adam-bot__close:hover {
+	background: rgba(255, 255, 255, 0.16);
+	color: #ffffff;
+	transform: rotate(4deg);
+}
+
+.adam-bot__conversation {
+	background:
+		radial-gradient(circle at 10% 0%, rgba(168, 213, 42, 0.08), transparent 28%),
+		var(--adam-bot-surface-soft);
+	overflow-x: hidden;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-color: rgba(96, 112, 103, 0.4) transparent;
+	scrollbar-width: thin;
+}
+
+.adam-bot__messages {
+	display: flex;
+	flex-direction: column;
+	gap: 0.8rem;
+	min-height: 100%;
+	padding: 1rem;
+}
+
+.adam-bot__empty-state {
+	display: flex;
+	flex-direction: column;
+	gap: 0.9rem;
+}
+
+.adam-bot__welcome-icon {
+	align-items: center;
+	background: var(--adam-bot-surface);
+	border: 1px solid var(--adam-bot-border);
+	border-radius: 14px;
+	box-shadow: 0 4px 14px rgba(28, 53, 35, 0.07);
+	display: flex;
+	font-size: 1.35rem;
+	height: 42px;
+	justify-content: center;
+	width: 42px;
+}
+
+.adam-bot__welcome-copy {
+	background: var(--adam-bot-surface);
+	border: 1px solid var(--adam-bot-border);
+	border-radius: 6px 18px 18px;
+	box-shadow: 0 5px 18px rgba(28, 53, 35, 0.06);
+	color: var(--adam-bot-muted);
+	font-size: 0.875rem;
+	padding: 1rem;
+}
+
+.adam-bot__welcome-copy p + p,
+.adam-bot__topics + p {
+	margin-top: 0.65rem;
+}
+
+.adam-bot__welcome-copy .adam-bot__greeting {
+	color: var(--adam-bot-ink);
+	font-size: 1.08rem;
+	font-weight: 750;
+	margin-bottom: 0.15rem;
+}
+
+.adam-bot__topics {
+	display: grid;
+	gap: 0.22rem 0.75rem;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	list-style: none;
+	margin: 0.55rem 0 0;
+	padding: 0;
+}
+
+.adam-bot__topics li::before {
+	color: var(--adam-bot-brand-strong);
+	content: "•";
+	font-weight: 900;
+	margin-right: 0.38rem;
+}
+
+.adam-bot__suggestions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.48rem;
+}
+
+.adam-bot__suggestion {
+	background: var(--adam-bot-surface);
+	border: 1px solid var(--adam-bot-border);
+	border-radius: 999px;
+	color: var(--adam-bot-ink);
+	cursor: pointer;
+	font-size: 0.76rem;
+	font-weight: 650;
+	line-height: 1.25;
+	padding: 0.57rem 0.75rem;
+	text-align: left;
+	transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.adam-bot__suggestion:hover {
+	background: #f8fce9;
+	border-color: var(--adam-bot-brand-strong);
+	box-shadow: 0 3px 10px rgba(80, 112, 34, 0.1);
+	transform: translateY(-1px);
+}
+
+.adam-bot__message {
+	display: flex;
+	max-width: 86%;
+}
+
+.adam-bot__message--user {
+	align-self: flex-end;
+}
+
+.adam-bot__message--assistant {
+	align-self: flex-start;
+}
+
+.adam-bot__bubble {
+	border-radius: 17px;
+	box-shadow: 0 3px 12px rgba(28, 53, 35, 0.06);
+	font-size: 0.875rem;
+	line-height: 1.55;
+	padding: 0.72rem 0.9rem;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.adam-bot__message--user .adam-bot__bubble {
+	background: var(--adam-bot-user);
+	border-radius: 17px 5px 17px 17px;
+	color: var(--adam-bot-user-text);
+}
+
+.adam-bot__message--assistant .adam-bot__bubble {
+	background: var(--adam-bot-surface);
+	border: 1px solid var(--adam-bot-border);
+	border-radius: 5px 17px 17px;
+	color: var(--adam-bot-ink);
+}
+
+.adam-bot__typing {
+	background: var(--adam-bot-surface);
+	border: 1px solid var(--adam-bot-border);
+	border-radius: 5px 17px 17px;
+	padding: 0.8rem 0.9rem;
+}
+
+.adam-bot__typing-dots {
+	display: flex;
+	gap: 0.27rem;
+}
+
+.adam-bot__typing-dots span {
+	animation: adam-bot-typing 1.1s ease-in-out infinite;
+	background: var(--adam-bot-muted);
+	border-radius: 50%;
+	height: 6px;
+	opacity: 0.45;
+	width: 6px;
+}
+
+.adam-bot__typing-dots span:nth-child(2) {
+	animation-delay: 130ms;
+}
+
+.adam-bot__typing-dots span:nth-child(3) {
+	animation-delay: 260ms;
+}
+
+.adam-bot__composer {
+	background: var(--adam-bot-surface);
+	border-top: 1px solid var(--adam-bot-border);
+	padding: 0.8rem 0.85rem max(0.7rem, env(safe-area-inset-bottom));
+}
+
+.adam-bot__input-wrap {
+	align-items: flex-end;
+	background: var(--adam-bot-surface-soft);
+	border: 1px solid var(--adam-bot-border);
+	border-radius: 16px;
+	display: flex;
+	gap: 0.55rem;
+	padding: 0.42rem;
+	transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.adam-bot__input-wrap:focus-within {
+	background: var(--adam-bot-surface);
+	border-color: var(--adam-bot-brand-strong);
+	box-shadow: 0 0 0 3px rgba(168, 213, 42, 0.18);
+}
+
+.adam-bot__input {
+	background: transparent;
+	border: 0;
+	color: var(--adam-bot-ink);
+	flex: 1;
+	font-size: 0.875rem;
+	line-height: 1.45;
+	max-height: 120px;
+	min-height: 40px;
+	overflow-y: auto;
+	padding: 0.58rem 0.42rem;
+	resize: none;
+}
+
+.adam-bot__input:focus {
+	outline: 0;
+}
+
+.adam-bot__input::placeholder {
+	color: var(--adam-bot-muted);
+	opacity: 0.82;
+}
+
+.adam-bot__send {
+	align-items: center;
+	background: var(--adam-bot-brand);
+	border: 0;
+	border-radius: 12px;
+	color: var(--adam-bot-ink);
+	cursor: pointer;
+	display: flex;
+	font-size: 0.78rem;
+	font-weight: 750;
+	gap: 0.25rem;
+	height: 40px;
+	justify-content: center;
+	padding: 0 0.68rem;
+	transition: background-color 160ms ease, opacity 160ms ease, transform 160ms ease;
+}
+
+.adam-bot__send:hover:not(:disabled) {
+	background: #b7e536;
+	transform: translateY(-1px);
+}
+
+.adam-bot__send:disabled {
+	cursor: not-allowed;
+	opacity: 0.42;
+}
+
+.adam-bot__input-hint {
+	color: var(--adam-bot-muted);
+	font-size: 0.65rem;
+	line-height: 1.3;
+	padding: 0.35rem 0.3rem 0;
+	text-align: center;
+}
+
+.adam-bot__screen-reader-text {
+	clip: rect(1px, 1px, 1px, 1px);
+	clip-path: inset(50%);
+	height: 1px;
+	overflow: hidden;
+	position: absolute !important;
+	width: 1px;
+	word-wrap: normal !important;
+}
+
+.adam-bot__backdrop {
+	background: rgba(9, 17, 12, 0.55);
+	inset: 0;
+	opacity: 0;
+	pointer-events: none;
+	position: fixed;
+	transition: opacity 200ms ease;
+	visibility: hidden;
+	z-index: 1;
+}
+
+@keyframes adam-bot-launcher-arrive {
+	from {
+		opacity: 0;
+		transform: translateY(14px) scale(0.86);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+@keyframes adam-bot-pulse {
+	0%, 30% {
+		opacity: 0.8;
+		transform: scale(0.9);
+	}
+	75%, 100% {
+		opacity: 0;
+		transform: scale(2.1);
+	}
+}
+
+@keyframes adam-bot-typing {
+	0%, 60%, 100% {
+		opacity: 0.38;
+		transform: translateY(0);
+	}
+	30% {
+		opacity: 1;
+		transform: translateY(-3px);
+	}
+}
+
+@media (max-width: 520px) {
+	.adam-bot__launcher {
+		bottom: max(1rem, env(safe-area-inset-bottom));
+		height: 58px;
+		left: max(1rem, env(safe-area-inset-left));
+		width: 58px;
+	}
+
+	.adam-bot__panel {
+		border-radius: 22px;
+		bottom: max(0.5rem, env(safe-area-inset-bottom));
+		height: auto;
+		left: max(0.5rem, env(safe-area-inset-left));
+		right: max(0.5rem, env(safe-area-inset-right));
+		top: max(0.5rem, env(safe-area-inset-top));
+		width: auto;
+	}
+
+	.adam-bot--open .adam-bot__backdrop {
+		opacity: 1;
+		pointer-events: auto;
+		visibility: visible;
+	}
+
+	.adam-bot__header {
+		min-height: 82px;
+	}
+
+	.adam-bot__messages {
+		padding: 0.85rem;
+	}
+}
+
+@media (max-width: 360px) {
+	.adam-bot__header {
+		gap: 0.55rem;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		padding: 0.85rem;
+	}
+
+	.adam-bot__brand-mark {
+		height: 42px;
+		width: 42px;
+	}
+
+	.adam-bot__status {
+		display: none;
+	}
+
+	.adam-bot__send span {
+		display: none;
+	}
+
+	.adam-bot__send {
+		width: 40px;
+	}
+}
+
+@media (prefers-color-scheme: dark) {
+	.adam-bot {
+		--adam-bot-ink: #edf5ef;
+		--adam-bot-muted: #9aaca0;
+		--adam-bot-surface: #17201a;
+		--adam-bot-surface-soft: #101713;
+		--adam-bot-border: #304036;
+		--adam-bot-user: #a8d52a;
+		--adam-bot-user-text: #122016;
+		--adam-bot-shadow: 0 24px 72px rgba(0, 0, 0, 0.55), 0 8px 24px rgba(0, 0, 0, 0.35);
+	}
+
+	.adam-bot__panel {
+		border-color: rgba(190, 211, 196, 0.15);
+	}
+
+	.adam-bot__suggestion:hover {
+		background: #202b23;
+	}
+
+	.adam-bot__input-wrap:focus-within {
+		background: #1d2821;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.adam-bot *,
+	.adam-bot *::before,
+	.adam-bot *::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		scroll-behavior: auto !important;
+		transition-duration: 0.01ms !important;
+	}
+}
+
+@media (forced-colors: active) {
+	.adam-bot__launcher,
+	.adam-bot__send,
+	.adam-bot__panel,
+	.adam-bot__suggestion,
+	.adam-bot__input-wrap {
+		border: 1px solid ButtonText;
+	}
+}
