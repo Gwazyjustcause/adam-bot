@@ -11,7 +11,6 @@ namespace AdamBot\Knowledge\Sources;
 
 use AdamBot\Knowledge\DTO\KnowledgeResult;
 use AdamBot\Knowledge\KnowledgeSourceInterface;
-use AdamBot\Knowledge\Search\KeywordMatcher;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -19,14 +18,6 @@ defined( 'ABSPATH' ) || exit;
  * Searches existing event post types and accepts repository-backed event data.
  */
 final class EventSource implements KnowledgeSourceInterface {
-	/** @var KeywordMatcher */
-	private $matcher;
-
-	/** @param KeywordMatcher $matcher Keyword matcher. */
-	public function __construct( KeywordMatcher $matcher ) {
-		$this->matcher = $matcher;
-	}
-
 	/** @return string */
 	public function getKey(): string {
 		return 'event';
@@ -39,11 +30,7 @@ final class EventSource implements KnowledgeSourceInterface {
 	 * @return array<int, KnowledgeResult>
 	 */
 	public function search( string $query ): array {
-		$has_intent = $this->matcher->hasIntent(
-			$query,
-			array( 'event', 'evento', 'game', 'jogo', 'partida', 'saturday', 'sábado', 'sabado', 'next', 'próximo', 'proximo' )
-		);
-		$results = $this->searchIntegratedItems( $query, $has_intent );
+		$results = $this->searchIntegratedItems( $query );
 
 		foreach ( $this->eventPostTypes() as $post_type ) {
 			$posts = get_posts(
@@ -69,13 +56,8 @@ final class EventSource implements KnowledgeSourceInterface {
 					$price
 				);
 				$priority = $this->datePriority( $date );
-				$score    = $this->matcher->score( $query, $title, $content, __( 'Events', 'adam-bot' ), 16, $priority );
 
-				if ( $has_intent && '' !== $content ) {
-					$score = max( $score, 34 + $priority );
-				}
-
-				if ( $score > 0 && '' !== $content ) {
+				if ( '' !== $content ) {
 					$results[] = new KnowledgeResult(
 						$this->getKey(),
 						__( 'ADAM event information', 'adam-bot' ),
@@ -83,7 +65,9 @@ final class EventSource implements KnowledgeSourceInterface {
 						$content,
 						__( 'Events', 'adam-bot' ),
 						(string) get_permalink( $post ),
-						$score
+						0,
+						array(),
+						$priority
 					);
 				}
 			}
@@ -96,10 +80,9 @@ final class EventSource implements KnowledgeSourceInterface {
 	 * Searches authoritative event items supplied by another ADAM component.
 	 *
 	 * @param string $query User question.
-	 * @param bool   $has_intent Whether the query is event-related.
 	 * @return array<int, KnowledgeResult>
 	 */
-	private function searchIntegratedItems( string $query, bool $has_intent ): array {
+	private function searchIntegratedItems( string $query ): array {
 		/**
 		 * Filters authoritative event knowledge items.
 		 *
@@ -129,13 +112,8 @@ final class EventSource implements KnowledgeSourceInterface {
 				$this->clean( (string) ( $item['price'] ?? '' ) )
 			);
 			$priority = max( $this->datePriority( $date ), max( 0, min( 15, (int) ( $item['priority'] ?? 0 ) ) ) );
-			$score    = $this->matcher->score( $query, $title, $content, $category, 17, $priority );
 
-			if ( $has_intent && '' !== $content ) {
-				$score = max( $score, 35 + $priority );
-			}
-
-			if ( $score > 0 && '' !== $content ) {
+			if ( '' !== $content ) {
 				$results[] = new KnowledgeResult(
 					$this->getKey(),
 					__( 'ADAM event information', 'adam-bot' ),
@@ -143,7 +121,9 @@ final class EventSource implements KnowledgeSourceInterface {
 					$content,
 					$category,
 					(string) ( $item['url'] ?? '' ),
-					$score
+					0,
+					array(),
+					$priority
 				);
 			}
 		}

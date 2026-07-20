@@ -27,11 +27,12 @@ final class Analytics {
 	 * @return array<string, mixed>
 	 */
 	public function all(): array {
-		$stored = get_option( self::OPTION_KEY, array() );
-		$stored = is_array( $stored ) ? $stored : array();
-		$data   = array_merge( $this->defaults(), $stored );
+		$stored   = get_option( self::OPTION_KEY, array() );
+		$stored   = is_array( $stored ) ? $stored : array();
+		$defaults = $this->defaults();
+		$data     = array_merge( $defaults, array_intersect_key( $stored, $defaults ) );
 
-		foreach ( array( 'total_conversations', 'total_messages', 'response_count', 'total_response_time_ms', 'knowledge_hits', 'general_responses', 'mixed_responses' ) as $key ) {
+		foreach ( array( 'total_conversations', 'total_messages', 'response_count', 'total_response_time_ms', 'knowledge_hits', 'high_confidence', 'medium_confidence', 'low_confidence', 'no_confidence' ) as $key ) {
 			$data[ $key ] = max( 0, (int) $data[ $key ] );
 		}
 
@@ -48,8 +49,10 @@ final class Analytics {
 			'response_count'         => 0,
 			'total_response_time_ms' => 0,
 			'knowledge_hits'         => 0,
-			'general_responses'      => 0,
-			'mixed_responses'        => 0,
+			'high_confidence'        => 0,
+			'medium_confidence'      => 0,
+			'low_confidence'         => 0,
+			'no_confidence'          => 0,
 			'questions'              => array(),
 		);
 	}
@@ -81,11 +84,10 @@ final class Analytics {
 		$data['total_response_time_ms'] += max( 0, $response_time_ms );
 		$data['knowledge_hits'] += $knowledge_hit ? 1 : 0;
 
-		if ( 'general_ai' === $classification ) {
-			$data['general_responses']++;
-		} elseif ( 'mixed' === $classification ) {
-			$data['mixed_responses']++;
-		}
+		$confidence_key = in_array( $classification, array( 'high', 'medium', 'low' ), true )
+			? $classification . '_confidence'
+			: 'no_confidence';
+		$data[ $confidence_key ]++;
 
 		if ( $count_question ) {
 			$this->recordQuestion( $data, $question );

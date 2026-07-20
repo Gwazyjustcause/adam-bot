@@ -80,7 +80,7 @@ final class Assets {
 					'typing'            => __( 'ADAM BOT está a escrever', 'adam-bot' ),
 					'followUps'         => __( 'Também pode perguntar', 'adam-bot' ),
 					'relatedPages'      => __( 'Páginas relacionadas', 'adam-bot' ),
-					'generalConsent'    => __( 'Sim — usar conhecimento geral', 'adam-bot' ),
+					'events'            => __( 'Eventos', 'adam-bot' ),
 					'restored'          => __( 'Conversa desta sessão restaurada.', 'adam-bot' ),
 				),
 			)

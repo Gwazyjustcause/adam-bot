@@ -37,8 +37,7 @@
 				headers,
 				body: JSON.stringify( {
 					message,
-					history: Array.isArray( options.history ) ? options.history.slice( -10 ) : [],
-					allow_general: options.allowGeneral === true,
+					context: options.context && typeof options.context === 'object' ? options.context : {},
 					new_conversation: options.newConversation === true,
 				} ),
 			} );
@@ -60,7 +59,8 @@
 				message: payload.message.trim(),
 				suggestions: Array.isArray( payload.suggestions ) ? payload.suggestions : [],
 				links: Array.isArray( payload.links ) ? payload.links : [],
-				needsGeneralKnowledge: payload.needsGeneralKnowledge === true,
+				cards: Array.isArray( payload.cards ) ? payload.cards : [],
+				context: payload.context && typeof payload.context === 'object' ? payload.context : {},
 			};
 		}
 	}
@@ -384,13 +384,7 @@
 				return;
 			}
 
-			const prompt = target.getAttribute( 'data-adam-message' ) || '';
-			if ( target.getAttribute( 'data-adam-action' ) === 'general' ) {
-				this.submitGeneralKnowledge( prompt );
-				return;
-			}
-
-			this.submitMessage( prompt );
+			this.submitMessage( target.getAttribute( 'data-adam-message' ) || '' );
 		}
 
 		handleDocumentKeydown( event ) {
@@ -443,9 +437,9 @@
 			}
 
 			this.lastSubmission = { message, time: now };
-			const history = this.getContextHistory();
+			const context = this.getKnowledgeContext();
 			const newConversation = ! this.state.conversationStarted;
-			const cacheKey = this.createCacheKey( message, history, false );
+			const cacheKey = this.createCacheKey( message, context );
 			const cached = this.getCachedResponse( cacheKey );
 
 			this.hideStarters();
@@ -457,40 +451,10 @@
 			this.showTyping();
 
 			try {
-				const reply = cached || await this.api.send( message, { history, newConversation } );
+				const reply = cached || await this.api.send( message, { context, newConversation } );
 				if ( ! cached ) {
 					this.cacheResponse( cacheKey, reply );
 				}
-				this.finishResponse( reply );
-			} catch ( error ) {
-				this.finishResponse( { message: this.strings.error || 'Não foi possível responder neste momento.' } );
-			}
-		}
-
-		async submitGeneralKnowledge( question ) {
-			const message = String( question || '' ).trim();
-			if ( ! message || this.isBusy ) {
-				return;
-			}
-
-			let history = this.getContextHistory();
-			if ( history.length && history[ history.length - 1 ].role === 'assistant' ) {
-				history = history.slice( 0, -1 );
-			}
-			if ( history.length && history[ history.length - 1 ].role === 'user' && history[ history.length - 1 ].content === message ) {
-				history = history.slice( 0, -1 );
-			}
-
-			this.appendMessage( this.strings.generalConsent || 'Sim — usar conhecimento geral', 'user' );
-			this.setBusy( true );
-			this.showTyping();
-
-			try {
-				const reply = await this.api.send( message, {
-					history,
-					allowGeneral: true,
-					newConversation: false,
-				} );
 				this.finishResponse( reply );
 			} catch ( error ) {
 				this.finishResponse( { message: this.strings.error || 'Não foi possível responder neste momento.' } );
@@ -504,10 +468,13 @@
 				: ( this.strings.error || 'Não foi possível responder neste momento.' );
 
 			this.removeTyping();
+			if ( response.context && typeof response.context === 'object' ) {
+				this.state.context = this.normalizeContext( response.context );
+			}
 			this.appendMessage( message, 'bot', {
 				links: response.links,
+				cards: response.cards,
 				suggestions: response.suggestions,
-				needsGeneralKnowledge: response.needsGeneralKnowledge,
 			} );
 			this.setBusy( false );
 
@@ -542,6 +509,7 @@
 			}
 
 			content.append( label, bubble );
+			this.appendCards( content, options.cards );
 			this.appendLinks( content, options.links );
 			this.appendSuggestions( content, options.suggestions );
 			item.appendChild( content );
@@ -552,8 +520,8 @@
 					author,
 					message,
 					links: this.normalizeLinks( options.links ),
+					cards: this.normalizeCards( options.cards ),
 					suggestions: this.normalizeSuggestions( options.suggestions ),
-					needsGeneralKnowledge: options.needsGeneralKnowledge === true,
 				} );
 				this.state.messages = this.state.messages.slice( -MAX_MESSAGES );
 				this.persistState();
@@ -586,6 +554,58 @@
 				link.rel = 'noopener noreferrer';
 				link.textContent = `${ linkData.label } →`;
 				card.append( text, link );
+				region.appendChild( card );
+			} );
+
+			content.appendChild( region );
+		}
+
+		appendCards( content, cards ) {
+			const clean = this.normalizeCards( cards );
+			if ( ! clean.length ) {
+				return;
+			}
+
+			const region = document.createElement( 'div' );
+			const title = document.createElement( 'p' );
+			region.className = 'adam-bot__knowledge-cards';
+			title.className = 'adam-bot__meta-title';
+			title.textContent = this.strings.events || 'Eventos';
+			region.appendChild( title );
+
+			clean.forEach( ( cardData ) => {
+				const card = document.createElement( 'article' );
+				const heading = document.createElement( 'h4' );
+				card.className = 'adam-bot__knowledge-card';
+				heading.textContent = cardData.title;
+				card.appendChild( heading );
+
+				if ( cardData.description ) {
+					const description = document.createElement( 'p' );
+					description.textContent = cardData.description;
+					card.appendChild( description );
+				}
+
+				if ( cardData.meta.length ) {
+					const meta = document.createElement( 'ul' );
+					meta.className = 'adam-bot__knowledge-card-meta';
+					cardData.meta.forEach( ( value ) => {
+						const item = document.createElement( 'li' );
+						item.textContent = value;
+						meta.appendChild( item );
+					} );
+					card.appendChild( meta );
+				}
+
+				if ( cardData.url ) {
+					const link = document.createElement( 'a' );
+					link.className = 'adam-bot__page-link';
+					link.href = cardData.url;
+					link.rel = 'noopener noreferrer';
+					link.textContent = `${ cardData.actionLabel } →`;
+					card.appendChild( link );
+				}
+
 				region.appendChild( card );
 			} );
 
@@ -639,6 +659,29 @@
 			}, [] );
 		}
 
+		normalizeCards( cards ) {
+			if ( ! Array.isArray( cards ) ) {
+				return [];
+			}
+
+			return cards.slice( 0, 3 ).reduce( ( clean, card ) => {
+				const title = String( card && card.title || '' ).trim().slice( 0, 100 );
+				if ( ! title ) {
+					return clean;
+				}
+
+				const safeUrl = getSafeUrl( card.url );
+				clean.push( {
+					title,
+					description: String( card.description || '' ).trim().slice( 0, 220 ),
+					meta: Array.isArray( card.meta ) ? card.meta.slice( 0, 3 ).map( ( value ) => String( value ).slice( 0, 100 ) ) : [],
+					url: safeUrl ? safeUrl.href : '',
+					actionLabel: String( card.actionLabel || 'Ver evento' ).slice( 0, 50 ),
+				} );
+				return clean;
+			}, [] );
+		}
+
 		normalizeSuggestions( suggestions ) {
 			if ( ! Array.isArray( suggestions ) ) {
 				return [];
@@ -647,9 +690,8 @@
 			return suggestions.slice( 0, 4 ).reduce( ( clean, suggestion ) => {
 				const label = String( suggestion && suggestion.label || '' ).trim().slice( 0, 100 );
 				const prompt = String( suggestion && suggestion.prompt || '' ).trim().slice( 0, 4000 );
-				const action = suggestion && suggestion.action === 'general' ? 'general' : 'message';
 				if ( label && prompt ) {
-					clean.push( { label, prompt, action } );
+					clean.push( { label, prompt, action: 'message' } );
 				}
 				return clean;
 			}, [] );
@@ -750,15 +792,27 @@
 			}
 		}
 
-		getContextHistory() {
-			return this.state.messages.slice( -10 ).map( ( stored ) => ( {
-				role: stored.author === 'bot' ? 'assistant' : 'user',
-				content: stored.message.slice( 0, 2000 ),
-			} ) );
+		getKnowledgeContext() {
+			return this.normalizeContext( this.state.context );
+		}
+
+		normalizeContext( context ) {
+			const allowedTopics = [ 'membership', 'events', 'rules', 'contact', 'airsoft', 'about' ];
+			const topic = context && allowedTopics.includes( context.topic ) ? context.topic : '';
+			const recentResultIds = context && Array.isArray( context.recentResultIds )
+				? context.recentResultIds.slice( -5 ).filter( ( id ) => /^[a-f0-9]{32}$/i.test( String( id ) ) )
+				: [];
+
+			return { topic, recentResultIds };
 		}
 
 		readState() {
-			const fallback = { conversationStarted: false, messages: [], cache: [] };
+			const fallback = {
+				conversationStarted: false,
+				messages: [],
+				cache: [],
+				context: { topic: '', recentResultIds: [] },
+			};
 			try {
 				const parsed = JSON.parse( window.sessionStorage.getItem( SESSION_KEY ) || 'null' );
 				if ( ! parsed || ! Array.isArray( parsed.messages ) ) {
@@ -770,6 +824,7 @@
 						return message && [ 'user', 'bot' ].includes( message.author ) && typeof message.message === 'string';
 					} ),
 					cache: Array.isArray( parsed.cache ) ? parsed.cache.slice( -MAX_CACHE_ENTRIES ) : [],
+					context: this.normalizeContext( parsed.context ),
 				};
 			} catch ( error ) {
 				return fallback;
@@ -784,11 +839,10 @@
 			}
 		}
 
-		createCacheKey( message, history, allowGeneral ) {
+		createCacheKey( message, context ) {
 			return JSON.stringify( {
 				message: message.toLocaleLowerCase(),
-				history: history.slice( -4 ).map( ( turn ) => `${ turn.role }:${ turn.content }` ),
-				allowGeneral,
+				context: this.normalizeContext( context ),
 			} );
 		}
 

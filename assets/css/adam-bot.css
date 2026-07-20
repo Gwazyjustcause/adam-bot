@@ -654,6 +654,7 @@
 }
 
 .adam-bot__related-pages,
+.adam-bot__knowledge-cards,
 .adam-bot__follow-ups {
 	margin-top: 10px;
 }
@@ -689,6 +690,44 @@
 	min-width: 0;
 	overflow-wrap: anywhere;
 	font-weight: 650;
+}
+
+.adam-bot__knowledge-card {
+	padding: 12px;
+	border: 1px solid var(--adam-border);
+	border-radius: 14px;
+	background: var(--adam-surface-raised);
+	box-shadow: 0 2px 8px rgba(17, 55, 40, 0.04);
+	overflow-wrap: anywhere;
+}
+
+.adam-bot__knowledge-card + .adam-bot__knowledge-card {
+	margin-top: 7px;
+}
+
+.adam-bot__knowledge-card h4,
+.adam-bot__knowledge-card p {
+	margin: 0 0 7px;
+}
+
+.adam-bot__knowledge-card h4 {
+	font-size: 13px;
+}
+
+.adam-bot__knowledge-card p,
+.adam-bot__knowledge-card-meta {
+	color: var(--adam-ink-muted);
+	font-size: 12px;
+	line-height: 1.45;
+}
+
+.adam-bot__knowledge-card-meta {
+	margin: 0 0 9px;
+	padding-left: 18px;
+}
+
+.adam-bot__knowledge-card .adam-bot__page-link {
+	display: inline-block;
 }
 
 .adam-bot__page-link {
@@ -933,7 +972,8 @@
 	}
 
 	.adam-bot__action-card,
-	.adam-bot__page-card {
+	.adam-bot__page-card,
+	.adam-bot__knowledge-card {
 		border-color: rgba(72, 216, 155, 0.2) !important;
 	}
 }
@@ -1023,6 +1063,7 @@
 	.adam-bot__action-card,
 	.adam-bot__bubble,
 	.adam-bot__page-card,
+	.adam-bot__knowledge-card,
 	.adam-bot__chip,
 	.adam-bot__input-wrap {
 		border: 1px solid CanvasText !important;

@@ -27,13 +27,27 @@ final class KnowledgeSettings {
 	 * @return array<string, string>
 	 */
 	public function sources(): array {
-		return array(
-			'faq'        => __( 'Frequently Asked Questions', 'adam-bot' ),
-			'page'       => __( 'Selected WordPress Pages', 'adam-bot' ),
-			'membership' => __( 'Membership Information', 'adam-bot' ),
-			'event'      => __( 'Event Information', 'adam-bot' ),
-			'manual'     => __( 'Manual Knowledge Entries', 'adam-bot' ),
+		$sources = apply_filters(
+			'adam_bot_knowledge_provider_registry',
+			array(
+				'faq'        => __( 'Frequently Asked Questions', 'adam-bot' ),
+				'page'       => __( 'Selected WordPress Pages', 'adam-bot' ),
+				'membership' => __( 'Membership Information', 'adam-bot' ),
+				'event'      => __( 'Event Information', 'adam-bot' ),
+				'manual'     => __( 'Manual Knowledge Entries', 'adam-bot' ),
+			)
 		);
+		$sources = is_array( $sources ) ? $sources : array();
+		$clean   = array();
+
+		foreach ( $sources as $key => $label ) {
+			$key = sanitize_key( (string) $key );
+			if ( '' !== $key && is_scalar( $label ) ) {
+				$clean[ $key ] = sanitize_text_field( (string) $label );
+			}
+		}
+
+		return $clean;
 	}
 
 	/**

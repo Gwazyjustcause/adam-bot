@@ -11,7 +11,6 @@ namespace AdamBot\Knowledge\Sources;
 
 use AdamBot\Knowledge\DTO\KnowledgeResult;
 use AdamBot\Knowledge\KnowledgeSourceInterface;
-use AdamBot\Knowledge\Search\KeywordMatcher;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -19,14 +18,6 @@ defined( 'ABSPATH' ) || exit;
 final class ManualSource implements KnowledgeSourceInterface {
 	/** Manual knowledge custom post type. */
 	public const POST_TYPE = 'adam_bot_knowledge';
-
-	/** @var KeywordMatcher */
-	private $matcher;
-
-	/** @param KeywordMatcher $matcher Keyword matcher. */
-	public function __construct( KeywordMatcher $matcher ) {
-		$this->matcher = $matcher;
-	}
 
 	/** @return string */
 	public function getKey(): string {
@@ -38,6 +29,7 @@ final class ManualSource implements KnowledgeSourceInterface {
 	 * @return array<int, KnowledgeResult>
 	 */
 	public function search( string $query ): array {
+		unset( $query );
 		$posts = get_posts(
 			array(
 				'post_type'      => self::POST_TYPE,
@@ -58,17 +50,14 @@ final class ManualSource implements KnowledgeSourceInterface {
 			$title    = $this->clean( (string) $post->post_title );
 			$content  = $this->clean( (string) $post->post_content );
 			$category = $this->clean( (string) get_post_meta( $post->ID, FAQSource::CATEGORY_META, true ) );
-			$score    = $this->matcher->score( $query, $title, $content, $category, 14 );
-
-			if ( $score > 0 && '' !== $content ) {
+			if ( '' !== $content ) {
 				$results[] = new KnowledgeResult(
 					$this->getKey(),
 					__( 'ADAM knowledge entry', 'adam-bot' ),
 					$title,
 					$content,
 					$category,
-					'',
-					$score
+					''
 				);
 			}
 		}

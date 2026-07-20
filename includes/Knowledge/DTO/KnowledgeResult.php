@@ -36,6 +36,12 @@ final class KnowledgeResult {
 	/** @var int */
 	private $score;
 
+	/** @var int */
+	private $priority;
+
+	/** @var array<int, string> */
+	private $matched_keywords;
+
 	/**
 	 * Creates a knowledge result.
 	 *
@@ -45,7 +51,9 @@ final class KnowledgeResult {
 	 * @param string $content Result content.
 	 * @param string $category Optional category.
 	 * @param string $url Optional canonical URL.
-	 * @param int    $score Relevance score from 0 to 100.
+	 * @param int                $score Relevance score from 0 to 100.
+	 * @param array<int, string> $matched_keywords Terms that contributed to the central rank.
+	 * @param int                $priority Provider-owned editorial priority from 0 to 100.
 	 */
 	public function __construct(
 		string $source,
@@ -54,15 +62,25 @@ final class KnowledgeResult {
 		string $content,
 		string $category = '',
 		string $url = '',
-		int $score = 0
+		int $score = 0,
+		array $matched_keywords = array(),
+		int $priority = 0
 	) {
-		$this->source       = sanitize_key( $source );
-		$this->source_label = trim( $source_label );
-		$this->title        = trim( $title );
-		$this->content      = trim( $content );
-		$this->category     = trim( $category );
-		$this->url          = esc_url_raw( $url );
-		$this->score        = max( 0, min( 100, $score ) );
+		$this->source           = sanitize_key( $source );
+		$this->source_label     = trim( $source_label );
+		$this->title            = trim( $title );
+		$this->content          = trim( $content );
+		$this->category         = trim( $category );
+		$this->url              = esc_url_raw( $url );
+		$this->score            = max( 0, min( 100, $score ) );
+		$this->priority         = max( 0, min( 100, $priority ) );
+		$this->matched_keywords = array_values(
+			array_unique(
+				array_filter(
+					array_map( 'sanitize_key', $matched_keywords )
+				)
+			)
+		);
 	}
 
 	/** @return string */
@@ -100,20 +118,58 @@ final class KnowledgeResult {
 		return $this->score;
 	}
 
+	/** @return int */
+	public function getPriority(): int {
+		return $this->priority;
+	}
+
+	/** @return array<int, string> */
+	public function getMatchedKeywords(): array {
+		return $this->matched_keywords;
+	}
+
+	/** @return string */
+	public function getId(): string {
+		return md5( $this->source . '|' . $this->title . '|' . $this->url );
+	}
+
+	/**
+	 * Returns a ranked copy while preserving normalized provider data.
+	 *
+	 * @param int                $score Central relevance score.
+	 * @param array<int, string> $matched_keywords Matched normalized terms.
+	 * @return self
+	 */
+	public function withRank( int $score, array $matched_keywords ): self {
+		return new self(
+			$this->source,
+			$this->source_label,
+			$this->title,
+			$this->content,
+			$this->category,
+			$this->url,
+			$score,
+			$matched_keywords,
+			$this->priority
+		);
+	}
+
 	/**
 	 * Returns a serializable cache representation.
 	 *
-	 * @return array<string, int|string>
+	 * @return array<string, mixed>
 	 */
 	public function toArray(): array {
 		return array(
-			'source'       => $this->source,
-			'source_label' => $this->source_label,
-			'title'        => $this->title,
-			'content'      => $this->content,
-			'category'     => $this->category,
-			'url'          => $this->url,
-			'score'        => $this->score,
+			'source'           => $this->source,
+			'source_label'     => $this->source_label,
+			'title'            => $this->title,
+			'content'          => $this->content,
+			'category'         => $this->category,
+			'url'              => $this->url,
+			'score'            => $this->score,
+			'priority'         => $this->priority,
+			'matched_keywords' => $this->matched_keywords,
 		);
 	}
 
@@ -131,7 +187,9 @@ final class KnowledgeResult {
 			(string) ( $data['content'] ?? '' ),
 			(string) ( $data['category'] ?? '' ),
 			(string) ( $data['url'] ?? '' ),
-			(int) ( $data['score'] ?? 0 )
+			(int) ( $data['score'] ?? 0 ),
+			isset( $data['matched_keywords'] ) && is_array( $data['matched_keywords'] ) ? $data['matched_keywords'] : array(),
+			(int) ( $data['priority'] ?? 0 )
 		);
 	}
 }

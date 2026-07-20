@@ -12,24 +12,18 @@ namespace AdamBot\Knowledge\Sources;
 use AdamBot\Knowledge\DTO\KnowledgeResult;
 use AdamBot\Knowledge\KnowledgeSettings;
 use AdamBot\Knowledge\KnowledgeSourceInterface;
-use AdamBot\Knowledge\Search\KeywordMatcher;
 
 defined( 'ABSPATH' ) || exit;
 
 /** Searches only pages explicitly selected by an administrator. */
 final class PageSource implements KnowledgeSourceInterface {
-	/** @var KeywordMatcher */
-	private $matcher;
-
 	/** @var KnowledgeSettings */
 	private $settings;
 
 	/**
-	 * @param KeywordMatcher    $matcher Keyword matcher.
 	 * @param KnowledgeSettings $settings Knowledge settings.
 	 */
-	public function __construct( KeywordMatcher $matcher, KnowledgeSettings $settings ) {
-		$this->matcher  = $matcher;
+	public function __construct( KnowledgeSettings $settings ) {
 		$this->settings = $settings;
 	}
 
@@ -43,6 +37,7 @@ final class PageSource implements KnowledgeSourceInterface {
 	 * @return array<int, KnowledgeResult>
 	 */
 	public function search( string $query ): array {
+		unset( $query );
 		$page_ids = $this->settings->getPageIds();
 
 		if ( empty( $page_ids ) ) {
@@ -64,9 +59,7 @@ final class PageSource implements KnowledgeSourceInterface {
 		foreach ( $posts as $post ) {
 			$title   = $this->clean( (string) $post->post_title );
 			$content = $this->clean( (string) $post->post_content );
-			$score   = $this->matcher->score( $query, $title, $content, __( 'Website page', 'adam-bot' ), 10 );
-
-			if ( $score > 0 && '' !== $content ) {
+			if ( '' !== $content ) {
 				$results[] = new KnowledgeResult(
 					$this->getKey(),
 					sprintf( __( 'ADAM page: %s', 'adam-bot' ), $title ),
@@ -74,7 +67,9 @@ final class PageSource implements KnowledgeSourceInterface {
 					$content,
 					__( 'Website page', 'adam-bot' ),
 					(string) get_permalink( $post ),
-					$score
+					0,
+					array(),
+					5
 				);
 			}
 		}

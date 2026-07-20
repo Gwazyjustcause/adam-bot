@@ -11,7 +11,6 @@ namespace AdamBot\Knowledge\Sources;
 
 use AdamBot\Knowledge\DTO\KnowledgeResult;
 use AdamBot\Knowledge\KnowledgeSourceInterface;
-use AdamBot\Knowledge\Search\KeywordMatcher;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -19,14 +18,6 @@ defined( 'ABSPATH' ) || exit;
  * Consumes authoritative membership data supplied by the ADAM ecosystem.
  */
 final class MembershipSource implements KnowledgeSourceInterface {
-	/** @var KeywordMatcher */
-	private $matcher;
-
-	/** @param KeywordMatcher $matcher Keyword matcher. */
-	public function __construct( KeywordMatcher $matcher ) {
-		$this->matcher = $matcher;
-	}
-
 	/** @return string */
 	public function getKey(): string {
 		return 'membership';
@@ -55,10 +46,6 @@ final class MembershipSource implements KnowledgeSourceInterface {
 			return array();
 		}
 
-		$has_intent = $this->matcher->hasIntent(
-			$query,
-			array( 'membership', 'member', 'socio', 'sócio', 'quota', 'aderente', 'efetivo', 'join', 'renew', 'renovar', 'benefit', 'benefício' )
-		);
 		$results = array();
 
 		foreach ( $items as $item ) {
@@ -70,13 +57,8 @@ final class MembershipSource implements KnowledgeSourceInterface {
 			$content  = $this->clean( (string) ( $item['content'] ?? '' ) );
 			$category = $this->clean( (string) ( $item['category'] ?? __( 'Membership', 'adam-bot' ) ) );
 			$priority = max( 0, min( 15, (int) ( $item['priority'] ?? 0 ) ) );
-			$score    = $this->matcher->score( $query, $title, $content, $category, 17, $priority );
 
-			if ( $has_intent && '' !== $content ) {
-				$score = max( $score, 36 + $priority );
-			}
-
-			if ( $score > 0 && '' !== $content ) {
+			if ( '' !== $content ) {
 				$results[] = new KnowledgeResult(
 					$this->getKey(),
 					__( 'ADAM membership information', 'adam-bot' ),
@@ -84,7 +66,9 @@ final class MembershipSource implements KnowledgeSourceInterface {
 					$content,
 					$category,
 					(string) ( $item['url'] ?? '' ),
-					$score
+					0,
+					array(),
+					$priority
 				);
 			}
 		}

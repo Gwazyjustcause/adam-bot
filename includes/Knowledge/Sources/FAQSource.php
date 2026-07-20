@@ -11,7 +11,6 @@ namespace AdamBot\Knowledge\Sources;
 
 use AdamBot\Knowledge\DTO\KnowledgeResult;
 use AdamBot\Knowledge\KnowledgeSourceInterface;
-use AdamBot\Knowledge\Search\KeywordMatcher;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -29,14 +28,6 @@ final class FAQSource implements KnowledgeSourceInterface {
 	/** Entry enabled meta key. */
 	public const ENABLED_META = '_adam_bot_enabled';
 
-	/** @var KeywordMatcher */
-	private $matcher;
-
-	/** @param KeywordMatcher $matcher Keyword matcher. */
-	public function __construct( KeywordMatcher $matcher ) {
-		$this->matcher = $matcher;
-	}
-
 	/** @return string */
 	public function getKey(): string {
 		return 'faq';
@@ -47,6 +38,7 @@ final class FAQSource implements KnowledgeSourceInterface {
 	 * @return array<int, KnowledgeResult>
 	 */
 	public function search( string $query ): array {
+		unset( $query );
 		$posts = get_posts(
 			array(
 				'post_type'      => self::POST_TYPE,
@@ -70,9 +62,9 @@ final class FAQSource implements KnowledgeSourceInterface {
 			$content     = $this->clean( (string) $post->post_content );
 			$category    = $this->clean( (string) get_post_meta( $post->ID, self::CATEGORY_META, true ) );
 			$priority    = max( 0, min( 100, (int) get_post_meta( $post->ID, self::PRIORITY_META, true ) ) );
-			$score       = $this->matcher->score( $query, $title, $content, $category, 18, (int) round( $priority * 0.15 ) );
+			$entry_priority = (int) round( $priority * 0.15 );
 
-			if ( $score > 0 && '' !== $content ) {
+			if ( '' !== $content ) {
 				$results[] = new KnowledgeResult(
 					$this->getKey(),
 					__( 'ADAM FAQ', 'adam-bot' ),
@@ -80,7 +72,9 @@ final class FAQSource implements KnowledgeSourceInterface {
 					$content,
 					$category,
 					'',
-					$score
+					0,
+					array(),
+					$entry_priority
 				);
 			}
 		}

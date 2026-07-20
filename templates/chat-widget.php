@@ -100,7 +100,7 @@ defined( 'ABSPATH' ) || exit;
 						class="adam-bot__input"
 						data-adam-input
 						rows="1"
-						maxlength="<?php echo esc_attr( (string) AdamBot\AI\Settings\AISettings::MAX_PROMPT_CHARACTERS ); ?>"
+						maxlength="4000"
 						placeholder="<?php esc_attr_e( 'Pergunte ao ADAM BOT…', 'adam-bot' ); ?>"
 						aria-label="<?php esc_attr_e( 'Mensagem para o ADAM BOT', 'adam-bot' ); ?>"
 						spellcheck="true"

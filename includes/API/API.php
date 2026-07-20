@@ -10,9 +10,8 @@ declare(strict_types=1);
 namespace AdamBot\API;
 
 use AdamBot\Analytics\Analytics;
-use AdamBot\AI\DTO\ChatRequest;
-use AdamBot\AI\Services\AIService;
-use AdamBot\AI\Settings\AISettings;
+use AdamBot\Knowledge\Response\ResponseFormatter;
+use AdamBot\Knowledge\Search\SearchService;
 use WP_REST_Request;
 use WP_REST_Response;
 use WP_REST_Server;
@@ -20,15 +19,17 @@ use WP_REST_Server;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Registers the ADAM BOT REST API routes.
+ * Registers the deterministic ADAM Knowledge Response endpoint.
  */
 final class API {
-	/**
-	 * Provider-neutral AI service.
-	 *
-	 * @var AIService
-	 */
-	private $ai_service;
+	/** Maximum public question length. */
+	private const MAX_MESSAGE_CHARACTERS = 4000;
+
+	/** @var SearchService */
+	private $search_service;
+
+	/** @var ResponseFormatter */
+	private $response_formatter;
 
 	/** @var RateLimiter */
 	private $rate_limiter;
@@ -37,32 +38,29 @@ final class API {
 	private $analytics;
 
 	/**
-	 * Creates the REST API component.
-	 *
-	 * @param AIService   $ai_service Provider-neutral AI service.
-	 * @param RateLimiter $rate_limiter Public request limiter.
-	 * @param Analytics   $analytics Privacy-friendly aggregate analytics.
+	 * @param SearchService     $search_service Deterministic provider search.
+	 * @param ResponseFormatter $response_formatter Conversational formatter.
+	 * @param RateLimiter       $rate_limiter Public request limiter.
+	 * @param Analytics         $analytics Privacy-friendly aggregate analytics.
 	 */
-	public function __construct( AIService $ai_service, RateLimiter $rate_limiter, Analytics $analytics ) {
-		$this->ai_service   = $ai_service;
-		$this->rate_limiter = $rate_limiter;
-		$this->analytics    = $analytics;
+	public function __construct(
+		SearchService $search_service,
+		ResponseFormatter $response_formatter,
+		RateLimiter $rate_limiter,
+		Analytics $analytics
+	) {
+		$this->search_service     = $search_service;
+		$this->response_formatter = $response_formatter;
+		$this->rate_limiter       = $rate_limiter;
+		$this->analytics          = $analytics;
 	}
 
-	/**
-	 * Registers REST API hooks.
-	 *
-	 * @return void
-	 */
+	/** @return void */
 	public function register_hooks(): void {
 		add_action( 'rest_api_init', array( $this, 'register_routes' ) );
 	}
 
-	/**
-	 * Registers the chat generation endpoint.
-	 *
-	 * @return void
-	 */
+	/** @return void */
 	public function register_routes(): void {
 		register_rest_route(
 			'adam-bot/v1',
@@ -79,16 +77,10 @@ final class API {
 						'sanitize_callback' => array( $this, 'sanitizeMessage' ),
 						'validate_callback' => array( $this, 'validateMessage' ),
 					),
-					'history' => array(
-						'description' => __( 'Temporary current-session conversation context.', 'adam-bot' ),
+					'context' => array(
+						'description' => __( 'Temporary topic and recently shown knowledge results.', 'adam-bot' ),
 						'required'    => false,
-						'type'        => 'array',
-						'maxItems'    => 10,
-					),
-					'allow_general' => array(
-						'description' => __( 'Explicit opt-in to a clearly labelled general-knowledge answer.', 'adam-bot' ),
-						'required'    => false,
-						'type'        => 'boolean',
+						'type'        => 'object',
 					),
 					'new_conversation' => array(
 						'description' => __( 'Whether this is the first request in the browser session.', 'adam-bot' ),
@@ -101,9 +93,9 @@ final class API {
 	}
 
 	/**
-	 * Generates a chat response through AIService only.
+	 * Runs User -> Search -> Rank -> Format -> Display without an external API.
 	 *
-	 * @param WP_REST_Request $request REST request. Input is sanitized by the route schema.
+	 * @param WP_REST_Request $request REST request.
 	 * @return WP_REST_Response
 	 */
 	public function chat( WP_REST_Request $request ) {
@@ -129,91 +121,66 @@ final class API {
 			);
 		}
 
-		$allow_general    = $this->toBoolean( $request->get_param( 'allow_general' ) );
+		$context          = $this->sanitizeContext( $request->get_param( 'context' ) );
 		$new_conversation = $this->toBoolean( $request->get_param( 'new_conversation' ) );
-		$history          = $this->sanitizeHistory( $request->get_param( 'history' ) );
-		$response         = $this->ai_service->generateResponse(
-			new ChatRequest( $message, '', false, $history, $allow_general )
-		);
+		$search           = $this->search_service->search( $message, $context );
+		$response         = $this->response_formatter->format( $search, $message );
 
 		$this->analytics->record(
 			$message,
 			$new_conversation,
 			$response->getResponseTimeMs(),
-			$response->isSuccess() && ! $response->needsGeneralConsent() ? $response->getClassification() : '',
-			$response->isSuccess() && $response->hasKnowledgeHit(),
-			! $allow_general
+			$response->getConfidenceLevel(),
+			$response->hasKnowledgeHit()
 		);
 
-		return new WP_REST_Response(
-			$response->toPublicArray(),
-			$response->isSuccess() ? 200 : 503
-		);
+		return new WP_REST_Response( $response->toPublicArray(), 200 );
 	}
 
-	/**
-	 * Sanitizes a public message before it enters the AI layer.
-	 *
-	 * @param mixed $value Submitted value.
-	 * @return string
-	 */
+	/** @param mixed $value Submitted value. */
 	public function sanitizeMessage( $value ): string {
 		return sanitize_textarea_field( is_scalar( $value ) ? (string) $value : '' );
 	}
 
-	/**
-	 * Enforces a non-empty maximum prompt size.
-	 *
-	 * @param mixed $value Submitted value.
-	 * @return bool
-	 */
+	/** @param mixed $value Submitted value. */
 	public function validateMessage( $value ): bool {
 		if ( ! is_string( $value ) || '' === trim( $value ) ) {
 			return false;
 		}
 
-		$length = function_exists( 'mb_strlen' )
-			? mb_strlen( $value )
-			: strlen( $value );
-
-		return $length <= AISettings::MAX_PROMPT_CHARACTERS;
+		$length = function_exists( 'mb_strlen' ) ? mb_strlen( $value ) : strlen( $value );
+		return $length <= self::MAX_MESSAGE_CHARACTERS;
 	}
 
 	/**
-	 * Sanitizes bounded context supplied from sessionStorage.
+	 * Keeps only a bounded topic and opaque result IDs for the browser session.
 	 *
-	 * @param mixed $value Candidate history.
-	 * @return array<int, array<string, string>>
+	 * @param mixed $value Candidate context.
+	 * @return array<string, mixed>
 	 */
-	private function sanitizeHistory( $value ): array {
+	private function sanitizeContext( $value ): array {
 		if ( ! is_array( $value ) ) {
-			return array();
+			return array( 'topic' => '', 'recent_result_ids' => array() );
 		}
 
-		$history = array();
+		$allowed_topics = array( 'membership', 'events', 'rules', 'contact', 'airsoft', 'about' );
+		$topic          = sanitize_key( (string) ( $value['topic'] ?? '' ) );
+		$topic          = in_array( $topic, $allowed_topics, true ) ? $topic : '';
+		$ids            = $value['recentResultIds'] ?? $value['recent_result_ids'] ?? array();
+		$ids            = is_array( $ids ) ? $ids : array();
+		$ids            = array_values(
+			array_filter(
+				array_map(
+					static function ( $id ): string {
+						$id = strtolower( is_scalar( $id ) ? (string) $id : '' );
+						return 1 === preg_match( '/^[a-f0-9]{32}$/', $id ) ? $id : '';
+					},
+					array_slice( $ids, -5 )
+				)
+			)
+		);
 
-		foreach ( array_slice( $value, -10 ) as $turn ) {
-			if ( ! is_array( $turn ) ) {
-				continue;
-			}
-
-			$role    = sanitize_key( (string) ( $turn['role'] ?? '' ) );
-			$content = sanitize_textarea_field( is_scalar( $turn['content'] ?? null ) ? (string) $turn['content'] : '' );
-
-			if ( ! in_array( $role, array( 'user', 'assistant' ), true ) || '' === trim( $content ) ) {
-				continue;
-			}
-
-			if ( function_exists( 'mb_substr' ) ) {
-				$content = mb_substr( $content, 0, 2000 );
-			} else {
-				$content = substr( $content, 0, 2000 );
-			}
-
-			$history[] = compact( 'role', 'content' );
-		}
-
-		return $history;
+		return array( 'topic' => $topic, 'recent_result_ids' => $ids );
 	}
 
 	/** @return bool */
