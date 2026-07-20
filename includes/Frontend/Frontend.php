@@ -12,7 +12,7 @@ namespace AdamBot\Frontend;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Provides the public mount point for future interfaces.
+ * Renders the public chat interface.
  */
 final class Frontend {
 	/**
@@ -21,19 +21,40 @@ final class Frontend {
 	 * @return void
 	 */
 	public function register_hooks(): void {
-		if ( is_admin() ) {
+		if ( ! $this->is_public_page() ) {
 			return;
 		}
 
-		add_action( 'wp_footer', array( $this, 'render_mount_point' ) );
+		add_action( 'wp_footer', array( $this, 'render_widget' ) );
 	}
 
 	/**
-	 * Renders the future chatbot mount point.
+	 * Renders the chat widget.
 	 *
 	 * @return void
 	 */
-	public function render_mount_point(): void {
-		printf( '<div id="%s"></div>', esc_attr( 'adam-bot-root' ) );
+	public function render_widget(): void {
+		if ( ! $this->is_public_page() ) {
+			return;
+		}
+
+		require ADAM_BOT_PATH . 'templates/chat-widget.php';
+	}
+
+	/**
+	 * Determines whether frontend output is allowed for the current request.
+	 *
+	 * @return bool
+	 */
+	private function is_public_page(): bool {
+		if ( is_admin() ) {
+			return false;
+		}
+
+		if ( function_exists( 'is_login' ) && is_login() ) {
+			return false;
+		}
+
+		return 'wp-login.php' !== ( $GLOBALS['pagenow'] ?? '' );
 	}
 }

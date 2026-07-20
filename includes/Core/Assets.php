@@ -21,7 +21,7 @@ final class Assets {
 	 * @return void
 	 */
 	public function register_hooks(): void {
-		if ( is_admin() ) {
+		if ( ! $this->is_public_page() ) {
 			return;
 		}
 
@@ -34,7 +34,7 @@ final class Assets {
 	 * @return void
 	 */
 	public function enqueue_assets(): void {
-		if ( is_admin() ) {
+		if ( ! $this->is_public_page() ) {
 			return;
 		}
 
@@ -92,5 +92,22 @@ final class Assets {
 		}
 
 		return ADAM_BOT_VERSION;
+	}
+
+	/**
+	 * Determines whether frontend assets are allowed for the current request.
+	 *
+	 * @return bool
+	 */
+	private function is_public_page(): bool {
+		if ( is_admin() ) {
+			return false;
+		}
+
+		if ( function_exists( 'is_login' ) && is_login() ) {
+			return false;
+		}
+
+		return 'wp-login.php' !== ( $GLOBALS['pagenow'] ?? '' );
 	}
 }

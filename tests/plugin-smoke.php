@@ -18,6 +18,7 @@ $test_routes     = array();
 $test_assets     = array();
 $test_textdomain = array();
 $test_is_admin   = 'admin' === $test_mode;
+$test_is_login   = 'login' === $test_mode;
 
 /**
  * Minimal REST server fixture.
@@ -120,6 +121,17 @@ function is_admin(): bool {
 }
 
 /**
+ * WordPress fixture for is_login().
+ *
+ * @return bool
+ */
+function is_login(): bool {
+	global $test_is_login;
+
+	return $test_is_login;
+}
+
+/**
  * Records textdomain loading.
  *
  * @param string $domain Textdomain.
@@ -157,8 +169,42 @@ function register_rest_route( string $namespace, string $route, array $args ): b
  * @param string $text Source text.
  * @return string
  */
-function __( string $text ): string {
+function __( string $text, string $domain = 'default' ): string {
+	unset( $domain );
+
 	return $text;
+}
+
+/**
+ * HTML escaping fixture.
+ *
+ * @param string $value HTML value.
+ * @return string
+ */
+function esc_html( string $value ): string {
+	return htmlspecialchars( $value, ENT_QUOTES, 'UTF-8' );
+}
+
+/**
+ * Echoes an escaped translated HTML value.
+ *
+ * @param string $text Source text.
+ * @param string $domain Textdomain.
+ * @return void
+ */
+function esc_html_e( string $text, string $domain = 'default' ): void {
+	echo esc_html( __( $text, $domain ) );
+}
+
+/**
+ * Echoes an escaped translated attribute value.
+ *
+ * @param string $text Source text.
+ * @param string $domain Textdomain.
+ * @return void
+ */
+function esc_attr_e( string $text, string $domain = 'default' ): void {
+	echo esc_attr( __( $text, $domain ) );
 }
 
 /**
@@ -324,10 +370,15 @@ if ( 'public' === $test_mode ) {
 
 	ob_start();
 	call_user_func( $test_hooks['wp_footer'][0]['callback'] );
-	$mount_point = ob_get_clean();
+	$widget = ob_get_clean();
 
-	if ( '<div id="adam-bot-root"></div>' !== $mount_point ) {
-		fwrite( STDERR, "Frontend mount point was not rendered correctly.\n" );
+	if (
+		false === strpos( $widget, 'id="adam-bot-root"' )
+		|| false === strpos( $widget, 'data-adam-launcher' )
+		|| false === strpos( $widget, 'Olá!' )
+		|| false === strpos( $widget, 'Pergunte ao ADAM BOT...' )
+	) {
+		fwrite( STDERR, "Frontend widget was not rendered correctly.\n" );
 		exit( 1 );
 	}
 
@@ -348,8 +399,13 @@ if ( 'public' === $test_mode ) {
 		fwrite( STDERR, "REST nonce was not provided to the frontend script.\n" );
 		exit( 1 );
 	}
+
+	if ( 'https://example.test/wp-json/adam-bot/v1/chat' !== ( $settings['restUrl'] ?? '' ) ) {
+		fwrite( STDERR, "REST chat URL was not provided to the frontend script.\n" );
+		exit( 1 );
+	}
 } elseif ( isset( $test_hooks['wp_enqueue_scripts'] ) || isset( $test_hooks['wp_footer'] ) ) {
-	fwrite( STDERR, "Frontend hooks were registered in wp-admin.\n" );
+	fwrite( STDERR, "Frontend hooks were registered on a protected screen.\n" );
 	exit( 1 );
 }
 
