@@ -9,11 +9,15 @@ declare(strict_types=1);
 
 namespace AdamBot\Core;
 
+use AdamBot\Admin\SettingsPage;
+use AdamBot\AI\Providers\ProviderFactory;
+use AdamBot\AI\Services\AIService;
+use AdamBot\AI\Services\PromptBuilder;
+use AdamBot\AI\Settings\AISettings;
 use AdamBot\API\API;
-use AdamBot\Chat\Chat;
+use AdamBot\API\RateLimiter;
 use AdamBot\Frontend\Frontend;
 use AdamBot\Helpers\Logger;
-use AdamBot\Services\ChatService;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -36,13 +40,19 @@ final class Plugin {
 	public function run(): void {
 		add_action( 'init', array( $this, 'load_textdomain' ) );
 
-		$logger       = new Logger();
-		$chat_service = new ChatService( $logger );
+		$settings = new AISettings();
+		$logger   = new Logger();
+
+		$settings->ensureDefaults();
+
+		$prompt_builder   = new PromptBuilder( $settings );
+		$provider_factory = new ProviderFactory( $settings );
+		$ai_service       = new AIService( $settings, $provider_factory, $prompt_builder, $logger );
 
 		$this->components = array(
 			new Frontend(),
-			new API( $chat_service ),
-			new Chat( $chat_service ),
+			new API( $ai_service, new RateLimiter() ),
+			new SettingsPage( $settings ),
 			new Assets(),
 		);
 

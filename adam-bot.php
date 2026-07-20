@@ -3,7 +3,7 @@
  * Plugin Name:       ADAM BOT
  * Plugin URI:        https://airsoftmondego.pt/
  * Description:       Modern frontend chat interface for the ADAM virtual assistant.
- * Version:           1.1.0
+ * Version:           1.2.0
  * Requires at least: 6.3
  * Requires PHP:      7.4
  * Author:            ADAM
@@ -17,7 +17,7 @@ declare(strict_types=1);
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'ADAM_BOT_VERSION', '1.1.0' );
+define( 'ADAM_BOT_VERSION', '1.2.0' );
 define( 'ADAM_BOT_FILE', __FILE__ );
 define( 'ADAM_BOT_PATH', plugin_dir_path( __FILE__ ) );
 define( 'ADAM_BOT_URL', plugin_dir_url( __FILE__ ) );
@@ -38,5 +38,9 @@ spl_autoload_register(
 		}
 	}
 );
+
+if ( function_exists( 'register_activation_hook' ) ) {
+	register_activation_hook( ADAM_BOT_FILE, array( AdamBot\AI\Settings\AISettings::class, 'activate' ) );
+}
 
 ( new AdamBot\Core\Plugin() )->run();

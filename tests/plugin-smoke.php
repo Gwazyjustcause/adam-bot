@@ -19,6 +19,23 @@ $test_assets     = array();
 $test_textdomain = array();
 $test_is_admin   = 'admin' === $test_mode;
 $test_is_login   = 'login' === $test_mode;
+$test_options    = array(
+	'adam_bot_ai_settings' => array(
+		'provider'       => 'openai',
+		'openai_api_key' => 'sk-' . str_repeat( 'A', 32 ),
+		'model'          => 'gpt-5.6-terra',
+		'temperature'    => 0.3,
+		'max_tokens'     => 500,
+		'timeout'        => 20,
+		'system_prompt'  => 'Trusted test system prompt.',
+	),
+);
+$test_transients  = array();
+$test_http_request = array();
+$test_http_failure = false;
+$test_admin       = array();
+
+$_SERVER['REMOTE_ADDR'] = '203.0.113.25';
 
 /**
  * Minimal REST server fixture.
@@ -31,6 +48,23 @@ final class WP_REST_Server {
  * Minimal REST request fixture.
  */
 final class WP_REST_Request {
+	/** @var array<string, mixed> */
+	private $params;
+
+	/**
+	 * @param array<string, mixed> $params Request parameters.
+	 */
+	public function __construct( array $params = array() ) {
+		$this->params = $params;
+	}
+
+	/**
+	 * @param string $key Parameter name.
+	 * @return mixed
+	 */
+	public function get_param( string $key ) {
+		return $this->params[ $key ] ?? null;
+	}
 }
 
 /**
@@ -44,13 +78,18 @@ final class WP_REST_Response {
 	 */
 	private $data;
 
+	/** @var int */
+	private $status;
+
 	/**
 	 * Creates the response.
 	 *
 	 * @param array<string, mixed> $data Response payload.
+	 * @param int                  $status HTTP status.
 	 */
-	public function __construct( array $data ) {
-		$this->data = $data;
+	public function __construct( array $data, int $status = 200 ) {
+		$this->data   = $data;
+		$this->status = $status;
 	}
 
 	/**
@@ -60,6 +99,25 @@ final class WP_REST_Response {
 	 */
 	public function get_data(): array {
 		return $this->data;
+	}
+
+	/** @return int */
+	public function get_status(): int {
+		return $this->status;
+	}
+}
+
+/** Minimal WordPress error fixture. */
+final class WP_Error {
+	/** @var string */
+	private $message;
+
+	public function __construct( string $message ) {
+		$this->message = $message;
+	}
+
+	public function get_error_message(): string {
+		return $this->message;
 	}
 }
 
@@ -107,6 +165,152 @@ function add_action( string $hook, callable $callback, int $priority = 10 ): voi
 		'callback' => $callback,
 		'priority' => $priority,
 	);
+}
+
+/**
+ * Returns a stored option.
+ *
+ * @param string $name Option name.
+ * @param mixed  $default Default value.
+ * @return mixed
+ */
+function get_option( string $name, $default = false ) {
+	global $test_options;
+
+	return $test_options[ $name ] ?? $default;
+}
+
+/**
+ * Adds an option when it does not exist.
+ *
+ * @param string $name Option name.
+ * @param mixed  $value Option value.
+ * @return bool
+ */
+function add_option( string $name, $value ): bool {
+	global $test_options;
+
+	if ( array_key_exists( $name, $test_options ) ) {
+		return false;
+	}
+
+	$test_options[ $name ] = $value;
+
+	return true;
+}
+
+/** Filter fixture. */
+function apply_filters( string $hook, $value ) {
+	unset( $hook );
+
+	return $value;
+}
+
+/** Key sanitizer fixture. */
+function sanitize_key( string $value ): string {
+	return preg_replace( '/[^a-z0-9_-]/', '', strtolower( $value ) ) ?? '';
+}
+
+/** Text sanitizer fixture. */
+function sanitize_text_field( string $value ): string {
+	return trim( strip_tags( $value ) );
+}
+
+/** Textarea sanitizer fixture. */
+function sanitize_textarea_field( string $value ): string {
+	return trim( strip_tags( $value ) );
+}
+
+/** Unslash fixture. */
+function wp_unslash( string $value ): string {
+	return stripslashes( $value );
+}
+
+/** Salt fixture. */
+function wp_salt( string $scheme = 'auth' ): string {
+	return 'test-' . $scheme . '-salt';
+}
+
+/** Gets a transient fixture. */
+function get_transient( string $key ) {
+	global $test_transients;
+
+	return $test_transients[ $key ] ?? false;
+}
+
+/** Sets a transient fixture. */
+function set_transient( string $key, $value, int $expiration ): bool {
+	global $test_transients;
+	unset( $expiration );
+
+	$test_transients[ $key ] = $value;
+
+	return true;
+}
+
+/** JSON encoding fixture. */
+function wp_json_encode( $value ) {
+	return json_encode( $value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+}
+
+/**
+ * OpenAI HTTP fixture.
+ *
+ * @param string               $url Request URL.
+ * @param array<string, mixed> $args Request arguments.
+ * @return array<string, mixed>
+ */
+function wp_remote_post( string $url, array $args ): array {
+	global $test_http_request, $test_http_failure;
+
+	$test_http_request = compact( 'url', 'args' );
+
+	if ( $test_http_failure ) {
+		return array(
+			'response' => array( 'code' => 401 ),
+			'body'     => wp_json_encode(
+				array(
+					'error' => array(
+						'type'    => 'authentication_error',
+						'message' => 'Rejected secret sk-THIS_MUST_NEVER_BE_PUBLIC.',
+					),
+				)
+			),
+		);
+	}
+
+	return array(
+		'response' => array( 'code' => 200 ),
+		'body'     => wp_json_encode(
+			array(
+				'choices' => array(
+					array(
+						'message' => array( 'content' => 'Resposta da IA.' ),
+					),
+				),
+				'usage'   => array(
+					'prompt_tokens'     => 10,
+					'completion_tokens' => 4,
+					'total_tokens'      => 14,
+				),
+			)
+		),
+	);
+}
+
+/** WordPress error predicate fixture. */
+function is_wp_error( $value ): bool {
+	return $value instanceof WP_Error;
+}
+
+/** HTTP status fixture. */
+function wp_remote_retrieve_response_code( array $response ): int {
+	return (int) ( $response['response']['code'] ?? 0 );
+}
+
+/** HTTP body fixture. */
+function wp_remote_retrieve_body( array $response ): string {
+	return (string) ( $response['body'] ?? '' );
 }
 
 /**
@@ -173,6 +377,86 @@ function __( string $text, string $domain = 'default' ): string {
 	unset( $domain );
 
 	return $text;
+}
+
+/** Escaped translation fixture. */
+function esc_html__( string $text, string $domain = 'default' ): string {
+	return esc_html( __( $text, $domain ) );
+}
+
+/** Textarea escaping fixture. */
+function esc_textarea( string $value ): string {
+	return htmlspecialchars( $value, ENT_QUOTES, 'UTF-8' );
+}
+
+/**
+ * Records the settings registration.
+ *
+ * @param string               $group Settings group.
+ * @param string               $option Option name.
+ * @param array<string, mixed> $args Registration arguments.
+ * @return bool
+ */
+function register_setting( string $group, string $option, array $args ): bool {
+	global $test_admin;
+
+	$test_admin['settings'][ $option ] = compact( 'group', 'args' );
+
+	return true;
+}
+
+/** Records the top-level menu. */
+function add_menu_page( ...$args ): string {
+	global $test_admin;
+
+	$test_admin['menu'] = $args;
+
+	return 'toplevel_page_adam-bot';
+}
+
+/** Records the submenu. */
+function add_submenu_page( ...$args ): string {
+	global $test_admin;
+
+	$test_admin['submenu'] = $args;
+
+	return 'adam-bot_page_adam-bot';
+}
+
+/** Settings error fixture. */
+function add_settings_error(): void {
+}
+
+/** Capability fixture. */
+function current_user_can( string $capability ): bool {
+	return 'manage_options' === $capability;
+}
+
+/** Fatal admin fixture. */
+function wp_die( string $message ): void {
+	throw new RuntimeException( $message );
+}
+
+/** Settings errors renderer fixture. */
+function settings_errors(): void {
+}
+
+/** Settings fields renderer fixture. */
+function settings_fields( string $group ): void {
+	echo '<input type="hidden" value="' . esc_attr( $group ) . '" />';
+}
+
+/** Submit button fixture. */
+function submit_button( string $text, string $type, string $name, bool $wrap ): void {
+	unset( $type, $wrap );
+	echo '<button name="' . esc_attr( $name ) . '">' . esc_html( $text ) . '</button>';
+}
+
+/** Selected attribute fixture. */
+function selected( $selected, $current ): void {
+	if ( $selected === $current ) {
+		echo 'selected="selected"';
+	}
 }
 
 /**
@@ -341,6 +625,11 @@ if ( empty( $test_hooks['init'][0]['callback'] ) || empty( $test_hooks['rest_api
 call_user_func( $test_hooks['init'][0]['callback'] );
 call_user_func( $test_hooks['rest_api_init'][0]['callback'] );
 
+if ( 'admin' === $test_mode ) {
+	call_user_func( $test_hooks['admin_init'][0]['callback'] );
+	call_user_func( $test_hooks['admin_menu'][0]['callback'] );
+}
+
 if ( 'adam-bot' !== ( $test_textdomain['domain'] ?? '' ) ) {
 	fwrite( STDERR, "Textdomain was not loaded.\n" );
 	exit( 1 );
@@ -353,11 +642,133 @@ if ( WP_REST_Server::CREATABLE !== ( $route['methods'] ?? '' ) || empty( $route[
 	exit( 1 );
 }
 
-$response = call_user_func( $route['callback'], new WP_REST_Request() );
+$message_args = $route['args']['message'] ?? array();
 
-if ( array( 'success' => true, 'message' => 'API ready' ) !== $response->get_data() ) {
-	fwrite( STDERR, "REST response did not match the readiness contract.\n" );
+if ( empty( $message_args['required'] ) || empty( $message_args['validate_callback'] ) ) {
+	fwrite( STDERR, "REST message validation was not registered.\n" );
 	exit( 1 );
+}
+
+$response = call_user_func( $route['callback'], new WP_REST_Request( array( 'message' => 'Olá?' ) ) );
+
+if ( array( 'success' => true, 'message' => 'Resposta da IA.' ) !== $response->get_data() || 200 !== $response->get_status() ) {
+	fwrite( STDERR, "REST response did not match the AI contract.\n" );
+	exit( 1 );
+}
+
+$http_payload = json_decode( (string) ( $test_http_request['args']['body'] ?? '' ), true );
+
+if (
+	'https://api.openai.com/v1/chat/completions' !== ( $test_http_request['url'] ?? '' )
+	|| 'Trusted test system prompt.' !== ( $http_payload['messages'][0]['content'] ?? '' )
+	|| 'developer' !== ( $http_payload['messages'][0]['role'] ?? '' )
+	|| 'Olá?' !== ( $http_payload['messages'][1]['content'] ?? '' )
+	|| true === ( $http_payload['stream'] ?? true )
+) {
+	fwrite( STDERR, "OpenAI request did not contain the trusted prompt contract.\n" );
+	exit( 1 );
+}
+
+if ( false !== strpos( wp_json_encode( $response->get_data() ), 'sk-' ) ) {
+	fwrite( STDERR, "REST response exposed an API key.\n" );
+	exit( 1 );
+}
+
+$oversized = call_user_func(
+	$route['callback'],
+	new WP_REST_Request( array( 'message' => str_repeat( 'x', 4001 ) ) )
+);
+
+if ( 400 !== $oversized->get_status() || true === ( $oversized->get_data()['success'] ?? true ) ) {
+	fwrite( STDERR, "Oversized prompts were not rejected.\n" );
+	exit( 1 );
+}
+
+if ( 'public' === $test_mode ) {
+	for ( $request_number = 1; $request_number < 20; $request_number++ ) {
+		$allowed = call_user_func(
+			$route['callback'],
+			new WP_REST_Request( array( 'message' => 'Rate-limit test.' ) )
+		);
+
+		if ( 200 !== $allowed->get_status() ) {
+			fwrite( STDERR, "The rate limiter blocked a request before the configured limit.\n" );
+			exit( 1 );
+		}
+	}
+
+	$limited = call_user_func(
+		$route['callback'],
+		new WP_REST_Request( array( 'message' => 'One request too many.' ) )
+	);
+
+	if ( 429 !== $limited->get_status() || false === strpos( $limited->get_data()['message'] ?? '', 'Too many requests' ) ) {
+		fwrite( STDERR, "The 20-request rate limit was not enforced.\n" );
+		exit( 1 );
+	}
+
+	$_SERVER['REMOTE_ADDR'] = '203.0.113.26';
+	$test_http_failure      = true;
+	$failed                 = call_user_func(
+		$route['callback'],
+		new WP_REST_Request( array( 'message' => 'Provider failure test.' ) )
+	);
+	$test_http_failure      = false;
+
+	$failed_payload = wp_json_encode( $failed->get_data() );
+	if (
+		503 !== $failed->get_status()
+		|| true === ( $failed->get_data()['success'] ?? true )
+		|| false !== strpos( $failed_payload, 'authentication_error' )
+		|| false !== strpos( $failed_payload, 'sk-' )
+	) {
+		fwrite( STDERR, "Provider failures were not converted to a safe public response.\n" );
+		exit( 1 );
+	}
+}
+
+if ( 'admin' === $test_mode ) {
+	if ( empty( $test_admin['settings']['adam_bot_ai_settings'] ) || empty( $test_admin['menu'] ) || empty( $test_admin['submenu'] ) ) {
+		fwrite( STDERR, "AI settings administration was not registered.\n" );
+		exit( 1 );
+	}
+
+	ob_start();
+	call_user_func( $test_admin['menu'][4] );
+	$settings_page = ob_get_clean();
+
+	if (
+		false === strpos( $settings_page, 'OpenAI API Key' )
+		|| false === strpos( $settings_page, 'Restore Default' )
+		|| false !== strpos( $settings_page, 'sk-' . str_repeat( 'A', 32 ) )
+	) {
+		fwrite( STDERR, "AI settings page was invalid or exposed the stored key.\n" );
+		exit( 1 );
+	}
+
+	$sanitize_settings = $test_admin['settings']['adam_bot_ai_settings']['args']['sanitize_callback'];
+	$_POST['adam_bot_restore_prompt'] = '1';
+	$restored = call_user_func(
+		$sanitize_settings,
+		array(
+			'provider'       => 'ollama',
+			'openai_api_key' => '',
+			'model'          => 'gpt-5.6-terra',
+			'temperature'    => '0.5',
+			'max_tokens'     => '700',
+			'system_prompt'  => 'Untrusted replacement.',
+		)
+	);
+	unset( $_POST['adam_bot_restore_prompt'] );
+
+	if (
+		'openai' !== $restored['provider']
+		|| AdamBot\AI\Settings\AISettings::DEFAULT_SYSTEM_PROMPT !== $restored['system_prompt']
+		|| $test_options['adam_bot_ai_settings']['openai_api_key'] !== $restored['openai_api_key']
+	) {
+		fwrite( STDERR, "Settings sanitization or default-prompt restoration failed.\n" );
+		exit( 1 );
+	}
 }
 
 if ( 'public' === $test_mode ) {

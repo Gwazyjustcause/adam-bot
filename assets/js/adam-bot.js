@@ -47,7 +47,15 @@
 				throw new Error( 'Invalid REST response.' );
 			}
 
-			if ( ! response.ok || ! payload || typeof payload.message !== 'string' || ! payload.message.trim() ) {
+			if ( ! payload || typeof payload.message !== 'string' || ! payload.message.trim() ) {
+				throw new Error( 'Unsuccessful REST response.' );
+			}
+
+			if ( ! response.ok ) {
+				if ( payload.success === false ) {
+					return payload.message;
+				}
+
 				throw new Error( 'Unsuccessful REST response.' );
 			}
 

@@ -2,7 +2,7 @@
 /**
  * ADAM BOT uninstall routine.
  *
- * No persistent data is created in Phase 2.
+ * Removes the plugin's persisted AI configuration, including its API key.
  *
  * @package AdamBot
  */
@@ -10,3 +10,5 @@
 declare(strict_types=1);
 
 defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
+
+delete_option( 'adam_bot_ai_settings' );
