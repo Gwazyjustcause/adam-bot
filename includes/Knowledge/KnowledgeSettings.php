@@ -1,0 +1,139 @@
+<?php
+/**
+ * Knowledge settings repository.
+ *
+ * @package AdamBot
+ */
+
+declare(strict_types=1);
+
+namespace AdamBot\Knowledge;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Owns source enablement, selected pages, and cache versioning.
+ */
+final class KnowledgeSettings {
+	/** WordPress option name. */
+	public const OPTION_KEY = 'adam_bot_knowledge_settings';
+
+	/** Cache namespace version option. */
+	public const CACHE_VERSION_KEY = 'adam_bot_knowledge_cache_version';
+
+	/**
+	 * Returns the supported source registry.
+	 *
+	 * @return array<string, string>
+	 */
+	public function sources(): array {
+		return array(
+			'faq'        => __( 'Frequently Asked Questions', 'adam-bot' ),
+			'page'       => __( 'Selected WordPress Pages', 'adam-bot' ),
+			'membership' => __( 'Membership Information', 'adam-bot' ),
+			'event'      => __( 'Event Information', 'adam-bot' ),
+			'manual'     => __( 'Manual Knowledge Entries', 'adam-bot' ),
+		);
+	}
+
+	/**
+	 * Returns safe settings.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function all(): array {
+		$stored = get_option( self::OPTION_KEY, array() );
+		$stored = is_array( $stored ) ? $stored : array();
+		$values = array_merge( $this->defaults(), $stored );
+		$valid  = array_keys( $this->sources() );
+
+		$values['enabled_sources'] = isset( $values['enabled_sources'] ) && is_array( $values['enabled_sources'] )
+			? array_values( array_intersect( $valid, array_map( 'sanitize_key', $values['enabled_sources'] ) ) )
+			: array();
+		$values['page_ids'] = isset( $values['page_ids'] ) && is_array( $values['page_ids'] )
+			? array_slice( array_values( array_unique( array_filter( array_map( 'absint', $values['page_ids'] ) ) ) ), 0, 50 )
+			: array();
+
+		return $values;
+	}
+
+	/**
+	 * Returns default source settings.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function defaults(): array {
+		return array(
+			'enabled_sources' => array_keys( $this->sources() ),
+			'page_ids'        => array(),
+		);
+	}
+
+	/**
+	 * Sanitizes the Knowledge settings form and invalidates cached searches.
+	 *
+	 * @param mixed $input Submitted settings.
+	 * @return array<string, mixed>
+	 */
+	public function sanitize( $input ): array {
+		$input   = is_array( $input ) ? $input : array();
+		$valid   = array_keys( $this->sources() );
+		$enabled = isset( $input['enabled_sources'] ) && is_array( $input['enabled_sources'] )
+			? array_values( array_intersect( $valid, array_map( 'sanitize_key', $input['enabled_sources'] ) ) )
+			: array();
+		$pages   = isset( $input['page_ids'] ) && is_array( $input['page_ids'] )
+			? array_slice( array_values( array_unique( array_filter( array_map( 'absint', $input['page_ids'] ) ) ) ), 0, 50 )
+			: array();
+
+		$this->bumpCacheVersion();
+
+		return array(
+			'enabled_sources' => $enabled,
+			'page_ids'        => $pages,
+		);
+	}
+
+	/** @return bool */
+	public function isSourceEnabled( string $source ): bool {
+		$settings = $this->all();
+
+		return in_array( sanitize_key( $source ), $settings['enabled_sources'], true );
+	}
+
+	/** @return array<int, int> */
+	public function getPageIds(): array {
+		$settings = $this->all();
+
+		return $settings['page_ids'];
+	}
+
+	/** @return int */
+	public function getCacheVersion(): int {
+		return max( 1, (int) get_option( self::CACHE_VERSION_KEY, 1 ) );
+	}
+
+	/**
+	 * Invalidates search caches without having to enumerate transient keys.
+	 *
+	 * @return void
+	 */
+	public function bumpCacheVersion(): void {
+		update_option( self::CACHE_VERSION_KEY, $this->getCacheVersion() + 1, false );
+	}
+
+	/** @return void */
+	public function ensureDefaults(): void {
+		if ( false === get_option( self::OPTION_KEY, false ) ) {
+			add_option( self::OPTION_KEY, $this->defaults(), '', 'no' );
+		}
+
+		if ( false === get_option( self::CACHE_VERSION_KEY, false ) ) {
+			add_option( self::CACHE_VERSION_KEY, 1, '', 'no' );
+		}
+	}
+
+	/** @return void */
+	public static function activate(): void {
+		( new self() )->ensureDefaults();
+	}
+}

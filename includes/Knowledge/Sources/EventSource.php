@@ -1,0 +1,233 @@
+<?php
+/**
+ * Event knowledge source adapter.
+ *
+ * @package AdamBot
+ */
+
+declare(strict_types=1);
+
+namespace AdamBot\Knowledge\Sources;
+
+use AdamBot\Knowledge\DTO\KnowledgeResult;
+use AdamBot\Knowledge\KnowledgeSourceInterface;
+use AdamBot\Knowledge\Search\KeywordMatcher;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Searches existing event post types and accepts repository-backed event data.
+ */
+final class EventSource implements KnowledgeSourceInterface {
+	/** @var KeywordMatcher */
+	private $matcher;
+
+	/** @param KeywordMatcher $matcher Keyword matcher. */
+	public function __construct( KeywordMatcher $matcher ) {
+		$this->matcher = $matcher;
+	}
+
+	/** @return string */
+	public function getKey(): string {
+		return 'event';
+	}
+
+	/**
+	 * Searches structured integrations and published event posts.
+	 *
+	 * @param string $query User question.
+	 * @return array<int, KnowledgeResult>
+	 */
+	public function search( string $query ): array {
+		$has_intent = $this->matcher->hasIntent(
+			$query,
+			array( 'event', 'evento', 'game', 'jogo', 'partida', 'saturday', 'sábado', 'sabado', 'next', 'próximo', 'proximo' )
+		);
+		$results = $this->searchIntegratedItems( $query, $has_intent );
+
+		foreach ( $this->eventPostTypes() as $post_type ) {
+			$posts = get_posts(
+				array(
+					'post_type'      => $post_type,
+					'post_status'    => 'publish',
+					'posts_per_page' => 50,
+					'orderby'        => 'date',
+					'order'          => 'DESC',
+					'no_found_rows'  => true,
+				)
+			);
+
+			foreach ( $posts as $post ) {
+				$title    = $this->clean( (string) $post->post_title );
+				$date     = $this->firstMeta( $post->ID, array( '_EventStartDate', 'event_start_date', '_event_start_date', 'start_date', 'event_date' ) );
+				$location = $this->firstMeta( $post->ID, array( '_EventVenue', 'event_location', '_event_location', 'location', 'venue' ) );
+				$price    = $this->firstMeta( $post->ID, array( 'event_price', '_event_price', 'price', 'cost' ) );
+				$content  = $this->eventContent(
+					$this->clean( (string) ( $post->post_excerpt ?? '' ) . "\n" . (string) $post->post_content ),
+					$date,
+					$location,
+					$price
+				);
+				$priority = $this->datePriority( $date );
+				$score    = $this->matcher->score( $query, $title, $content, __( 'Events', 'adam-bot' ), 16, $priority );
+
+				if ( $has_intent && '' !== $content ) {
+					$score = max( $score, 34 + $priority );
+				}
+
+				if ( $score > 0 && '' !== $content ) {
+					$results[] = new KnowledgeResult(
+						$this->getKey(),
+						__( 'ADAM event information', 'adam-bot' ),
+						$title,
+						$content,
+						__( 'Events', 'adam-bot' ),
+						(string) get_permalink( $post ),
+						$score
+					);
+				}
+			}
+		}
+
+		return $results;
+	}
+
+	/**
+	 * Searches authoritative event items supplied by another ADAM component.
+	 *
+	 * @param string $query User question.
+	 * @param bool   $has_intent Whether the query is event-related.
+	 * @return array<int, KnowledgeResult>
+	 */
+	private function searchIntegratedItems( string $query, bool $has_intent ): array {
+		/**
+		 * Filters authoritative event knowledge items.
+		 *
+		 * Items may contain title, content, date, location, price, category, url,
+		 * priority, and enabled. Existing event services can adapt their repository
+		 * records here without copying them into ADAM BOT.
+		 *
+		 * @param array<int, array<string, mixed>> $items Event items.
+		 * @param string                           $query Current user question.
+		 */
+		$items = apply_filters( 'adam_bot_knowledge_event_items', array(), $query );
+		$items = is_array( $items ) ? $items : array();
+		$results = array();
+
+		foreach ( $items as $item ) {
+			if ( ! is_array( $item ) || ( isset( $item['enabled'] ) && ! $item['enabled'] ) ) {
+				continue;
+			}
+
+			$title    = $this->clean( (string) ( $item['title'] ?? '' ) );
+			$date     = $this->clean( (string) ( $item['date'] ?? '' ) );
+			$category = $this->clean( (string) ( $item['category'] ?? __( 'Events', 'adam-bot' ) ) );
+			$content  = $this->eventContent(
+				$this->clean( (string) ( $item['content'] ?? '' ) ),
+				$date,
+				$this->clean( (string) ( $item['location'] ?? '' ) ),
+				$this->clean( (string) ( $item['price'] ?? '' ) )
+			);
+			$priority = max( $this->datePriority( $date ), max( 0, min( 15, (int) ( $item['priority'] ?? 0 ) ) ) );
+			$score    = $this->matcher->score( $query, $title, $content, $category, 17, $priority );
+
+			if ( $has_intent && '' !== $content ) {
+				$score = max( $score, 35 + $priority );
+			}
+
+			if ( $score > 0 && '' !== $content ) {
+				$results[] = new KnowledgeResult(
+					$this->getKey(),
+					__( 'ADAM event information', 'adam-bot' ),
+					$title,
+					$content,
+					$category,
+					(string) ( $item['url'] ?? '' ),
+					$score
+				);
+			}
+		}
+
+		return $results;
+	}
+
+	/** @return array<int, string> */
+	private function eventPostTypes(): array {
+		/**
+		 * Filters event post types already registered by the ADAM ecosystem.
+		 *
+		 * @param array<int, string> $post_types Candidate event post types.
+		 */
+		$post_types = apply_filters( 'adam_bot_knowledge_event_post_types', array( 'event', 'events', 'tribe_events' ) );
+		$post_types = is_array( $post_types ) ? $post_types : array();
+
+		return array_values(
+			array_filter(
+				array_unique( array_map( 'sanitize_key', $post_types ) ),
+				static function ( string $post_type ): bool {
+					return post_type_exists( $post_type );
+				}
+			)
+		);
+	}
+
+	/**
+	 * Gets the first non-empty value from known event meta keys.
+	 *
+	 * @param int                $post_id Event post ID.
+	 * @param array<int, string> $keys Candidate keys.
+	 * @return string
+	 */
+	private function firstMeta( int $post_id, array $keys ): string {
+		foreach ( $keys as $key ) {
+			$value = get_post_meta( $post_id, $key, true );
+
+			if ( is_scalar( $value ) && '' !== trim( (string) $value ) ) {
+				return $this->clean( (string) $value );
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Adds structured event fields to searchable and promptable content.
+	 *
+	 * @return string
+	 */
+	private function eventContent( string $content, string $date, string $location, string $price ): string {
+		$parts = array_filter(
+			array(
+				$content,
+				'' !== $date ? sprintf( __( 'Date: %s', 'adam-bot' ), $date ) : '',
+				'' !== $location ? sprintf( __( 'Location: %s', 'adam-bot' ), $location ) : '',
+				'' !== $price ? sprintf( __( 'Price: %s', 'adam-bot' ), $price ) : '',
+			)
+		);
+
+		return implode( "\n", $parts );
+	}
+
+	/**
+	 * Gives upcoming events a small deterministic recency boost.
+	 *
+	 * @param string $date Event date.
+	 * @return int
+	 */
+	private function datePriority( string $date ): int {
+		$timestamp = strtotime( $date );
+
+		if ( false === $timestamp || $timestamp < time() ) {
+			return 0;
+		}
+
+		$days = (int) floor( ( $timestamp - time() ) / DAY_IN_SECONDS );
+
+		return max( 2, 15 - min( 13, (int) floor( $days / 14 ) ) );
+	}
+
+	/** @return string */
+	private function clean( string $value ): string {
+		return trim( wp_strip_all_tags( strip_shortcodes( $value ) ) );
+	}
+}

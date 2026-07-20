@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 define( 'ABSPATH', __DIR__ );
 define( 'WP_DEBUG', true );
+define( 'DAY_IN_SECONDS', 86400 );
 
 $test_mode       = $argv[1] ?? 'public';
 $test_hooks      = array();
@@ -29,11 +30,98 @@ $test_options    = array(
 		'timeout'        => 20,
 		'system_prompt'  => 'Trusted test system prompt.',
 	),
+	'adam_bot_knowledge_settings' => array(
+		'enabled_sources' => array( 'faq', 'page', 'membership', 'event', 'manual' ),
+		'page_ids'        => array( 101 ),
+	),
+	'adam_bot_knowledge_cache_version' => 1,
 );
 $test_transients  = array();
 $test_http_request = array();
 $test_http_failure = false;
 $test_admin       = array();
+$test_get_posts_calls = 0;
+$test_registered_post_types = array();
+$test_post_meta   = array(
+	201 => array(
+		'_adam_bot_category' => 'Membership',
+		'_adam_bot_priority' => '90',
+		'_adam_bot_enabled'  => '1',
+	),
+	202 => array(
+		'_adam_bot_category' => 'Contact',
+		'_adam_bot_enabled'  => '0',
+	),
+	203 => array(
+		'_adam_bot_category' => 'Equipment',
+		'_adam_bot_enabled'  => '1',
+	),
+	301 => array(
+		'event_start_date' => '2026-08-01 10:00:00',
+		'event_location'   => 'Campo do Mondego',
+		'event_price'      => '€5',
+	),
+);
+$test_posts       = array(
+	(object) array(
+		'ID'           => 101,
+		'post_type'    => 'page',
+		'post_status'  => 'publish',
+		'post_title'   => 'About ADAM',
+		'post_content' => 'ADAM is an airsoft sports association in Mondego.',
+		'post_excerpt' => '',
+	),
+	(object) array(
+		'ID'           => 201,
+		'post_type'    => 'adam_bot_faq',
+		'post_status'  => 'publish',
+		'post_title'   => 'Membership Prices',
+		'post_content' => 'Sócio Efetivo costs €22 per year. Sócio Aderente costs €12 per year.',
+		'post_excerpt' => '',
+	),
+	(object) array(
+		'ID'           => 102,
+		'post_type'    => 'page',
+		'post_status'  => 'publish',
+		'post_title'   => 'Privacy Policy',
+		'post_content' => 'Unselected private website policy content.',
+		'post_excerpt' => '',
+	),
+	(object) array(
+		'ID'           => 202,
+		'post_type'    => 'adam_bot_knowledge',
+		'post_status'  => 'publish',
+		'post_title'   => 'Private Contact Note',
+		'post_content' => 'This disabled entry must not be included.',
+		'post_excerpt' => '',
+	),
+	(object) array(
+		'ID'           => 203,
+		'post_type'    => 'adam_bot_knowledge',
+		'post_status'  => 'publish',
+		'post_title'   => 'Chronograph Limit',
+		'post_content' => 'The official chronograph limit in this test is 1.3 joules.',
+		'post_excerpt' => '',
+	),
+	(object) array(
+		'ID'           => 301,
+		'post_type'    => 'event',
+		'post_status'  => 'publish',
+		'post_title'   => 'Summer Game',
+		'post_content' => 'A published ADAM airsoft game.',
+		'post_excerpt' => '',
+	),
+);
+$test_membership_items = array(
+	array(
+		'title'    => 'Membership Renewal',
+		'content'  => 'Membership renewals are handled through the official ADAM membership service.',
+		'category' => 'Membership',
+		'priority' => 5,
+		'enabled'  => true,
+	),
+);
+$test_event_items = array();
 
 $_SERVER['REMOTE_ADDR'] = '203.0.113.25';
 
@@ -158,12 +246,13 @@ function plugin_basename( string $file ): string {
  * @param int      $priority Hook priority.
  * @return void
  */
-function add_action( string $hook, callable $callback, int $priority = 10 ): void {
+function add_action( string $hook, callable $callback, int $priority = 10, int $accepted_args = 1 ): void {
 	global $test_hooks;
 
 	$test_hooks[ $hook ][] = array(
-		'callback' => $callback,
-		'priority' => $priority,
+		'callback'      => $callback,
+		'priority'      => $priority,
+		'accepted_args' => $accepted_args,
 	);
 }
 
@@ -199,9 +288,31 @@ function add_option( string $name, $value ): bool {
 	return true;
 }
 
+/** Updates an option. */
+function update_option( string $name, $value ): bool {
+	global $test_options;
+
+	$test_options[ $name ] = $value;
+
+	return true;
+}
+
 /** Filter fixture. */
-function apply_filters( string $hook, $value ) {
-	unset( $hook );
+function apply_filters( string $hook, $value, ...$args ) {
+	global $test_membership_items, $test_event_items;
+	unset( $args );
+
+	if ( 'adam_bot_knowledge_membership_items' === $hook ) {
+		return $test_membership_items;
+	}
+
+	if ( 'adam_bot_knowledge_event_items' === $hook ) {
+		return $test_event_items;
+	}
+
+	if ( 'adam_bot_knowledge_event_post_types' === $hook ) {
+		return array( 'event' );
+	}
 
 	return $value;
 }
@@ -219,6 +330,36 @@ function sanitize_text_field( string $value ): string {
 /** Textarea sanitizer fixture. */
 function sanitize_textarea_field( string $value ): string {
 	return trim( strip_tags( $value ) );
+}
+
+/** Positive integer fixture. */
+function absint( $value ): int {
+	return abs( (int) $value );
+}
+
+/** Removes common Portuguese accents for deterministic search tests. */
+function remove_accents( string $value ): string {
+	return strtr(
+		$value,
+		array(
+			'á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a',
+			'é' => 'e', 'ê' => 'e', 'í' => 'i', 'ó' => 'o',
+			'ô' => 'o', 'õ' => 'o', 'ú' => 'u', 'ç' => 'c',
+			'Á' => 'A', 'À' => 'A', 'Â' => 'A', 'Ã' => 'A',
+			'É' => 'E', 'Ê' => 'E', 'Í' => 'I', 'Ó' => 'O',
+			'Ô' => 'O', 'Õ' => 'O', 'Ú' => 'U', 'Ç' => 'C',
+		)
+	);
+}
+
+/** Strips all HTML tags. */
+function wp_strip_all_tags( string $value ): string {
+	return strip_tags( $value );
+}
+
+/** Shortcode stripping fixture. */
+function strip_shortcodes( string $value ): string {
+	return preg_replace( '/\[[^\]]+\]/', '', $value ) ?? '';
 }
 
 /** Unslash fixture. */
@@ -246,6 +387,63 @@ function set_transient( string $key, $value, int $expiration ): bool {
 	$test_transients[ $key ] = $value;
 
 	return true;
+}
+
+/**
+ * Retrieves fixture posts using the small subset needed by sources.
+ *
+ * @param array<string, mixed> $args Query arguments.
+ * @return array<int, object>
+ */
+function get_posts( array $args ): array {
+	global $test_posts, $test_get_posts_calls;
+
+	$test_get_posts_calls++;
+	$post_types = isset( $args['post_type'] ) && is_array( $args['post_type'] )
+		? $args['post_type']
+		: array( $args['post_type'] ?? 'post' );
+	$included   = isset( $args['post__in'] ) && is_array( $args['post__in'] ) ? array_map( 'intval', $args['post__in'] ) : array();
+
+	return array_values(
+		array_filter(
+			$test_posts,
+			static function ( $post ) use ( $post_types, $included ): bool {
+				return in_array( $post->post_type, $post_types, true )
+					&& 'publish' === $post->post_status
+					&& ( empty( $included ) || in_array( (int) $post->ID, $included, true ) );
+			}
+		)
+	);
+}
+
+/** Post-meta fixture. */
+function get_post_meta( int $post_id, string $key, bool $single = false ) {
+	global $test_post_meta;
+	unset( $single );
+
+	return $test_post_meta[ $post_id ][ $key ] ?? '';
+}
+
+/** Permalink fixture. */
+function get_permalink( $post ): string {
+	$post_id = is_object( $post ) ? (int) $post->ID : (int) $post;
+
+	return 'https://example.test/?p=' . $post_id;
+}
+
+/** Post-type availability fixture. */
+function post_type_exists( string $post_type ): bool {
+	return in_array( $post_type, array( 'page', 'event', 'adam_bot_faq', 'adam_bot_knowledge' ), true );
+}
+
+/** Returns published page fixtures. */
+function get_pages(): array {
+	return get_posts( array( 'post_type' => 'page' ) );
+}
+
+/** Page-title fixture. */
+function get_the_title( $post ): string {
+	return is_object( $post ) ? (string) $post->post_title : '';
 }
 
 /** JSON encoding fixture. */
@@ -418,9 +616,46 @@ function add_menu_page( ...$args ): string {
 function add_submenu_page( ...$args ): string {
 	global $test_admin;
 
-	$test_admin['submenu'] = $args;
+	$test_admin['submenus'][] = $args;
 
 	return 'adam-bot_page_adam-bot';
+}
+
+/** Records custom post types. */
+function register_post_type( string $post_type, array $args ): void {
+	global $test_registered_post_types;
+
+	$test_registered_post_types[ $post_type ] = $args;
+}
+
+/** Meta-box registration fixture. */
+function add_meta_box(): void {
+}
+
+/** Nonce field fixture. */
+function wp_nonce_field( string $action, string $name ): void {
+	echo '<input type="hidden" name="' . esc_attr( $name ) . '" value="test-knowledge-nonce" data-action="' . esc_attr( $action ) . '" />';
+}
+
+/** Nonce verification fixture. */
+function wp_verify_nonce( string $nonce, string $action ): bool {
+	return 'test-knowledge-nonce' === $nonce && 'adam_bot_save_knowledge_entry' === $action;
+}
+
+/** Revision fixture. */
+function wp_is_post_revision( int $post_id ): bool {
+	unset( $post_id );
+
+	return false;
+}
+
+/** Updates post metadata in the in-memory fixture. */
+function update_post_meta( int $post_id, string $key, $value ): bool {
+	global $test_post_meta;
+
+	$test_post_meta[ $post_id ][ $key ] = $value;
+
+	return true;
 }
 
 /** Settings error fixture. */
@@ -428,8 +663,10 @@ function add_settings_error(): void {
 }
 
 /** Capability fixture. */
-function current_user_can( string $capability ): bool {
-	return 'manage_options' === $capability;
+function current_user_can( string $capability, ...$args ): bool {
+	unset( $args );
+
+	return in_array( $capability, array( 'manage_options', 'edit_post' ), true );
 }
 
 /** Fatal admin fixture. */
@@ -447,7 +684,7 @@ function settings_fields( string $group ): void {
 }
 
 /** Submit button fixture. */
-function submit_button( string $text, string $type, string $name, bool $wrap ): void {
+function submit_button( string $text = 'Save Changes', string $type = 'primary', string $name = 'submit', bool $wrap = true ): void {
 	unset( $type, $wrap );
 	echo '<button name="' . esc_attr( $name ) . '">' . esc_html( $text ) . '</button>';
 }
@@ -457,6 +694,23 @@ function selected( $selected, $current ): void {
 	if ( $selected === $current ) {
 		echo 'selected="selected"';
 	}
+}
+
+/** Checked attribute fixture. */
+function checked( $checked, $current = true ): void {
+	if ( $checked === $current ) {
+		echo 'checked="checked"';
+	}
+}
+
+/** Admin URL fixture. */
+function admin_url( string $path = '' ): string {
+	return 'https://example.test/wp-admin/' . ltrim( $path, '/' );
+}
+
+/** URL escaping fixture. */
+function esc_url( string $url ): string {
+	return $url;
 }
 
 /**
@@ -622,12 +876,29 @@ if ( empty( $test_hooks['init'][0]['callback'] ) || empty( $test_hooks['rest_api
 	exit( 1 );
 }
 
-call_user_func( $test_hooks['init'][0]['callback'] );
-call_user_func( $test_hooks['rest_api_init'][0]['callback'] );
+/** Runs every registered fixture callback for a hook. */
+function run_test_hook( string $hook ): void {
+	global $test_hooks;
+
+	$callbacks = $test_hooks[ $hook ] ?? array();
+	usort(
+		$callbacks,
+		static function ( array $left, array $right ): int {
+			return $left['priority'] <=> $right['priority'];
+		}
+	);
+
+	foreach ( $callbacks as $registered ) {
+		call_user_func( $registered['callback'] );
+	}
+}
+
+run_test_hook( 'init' );
+run_test_hook( 'rest_api_init' );
 
 if ( 'admin' === $test_mode ) {
-	call_user_func( $test_hooks['admin_init'][0]['callback'] );
-	call_user_func( $test_hooks['admin_menu'][0]['callback'] );
+	run_test_hook( 'admin_init' );
+	run_test_hook( 'admin_menu' );
 }
 
 if ( 'adam-bot' !== ( $test_textdomain['domain'] ?? '' ) ) {
@@ -649,7 +920,8 @@ if ( empty( $message_args['required'] ) || empty( $message_args['validate_callba
 	exit( 1 );
 }
 
-$response = call_user_func( $route['callback'], new WP_REST_Request( array( 'message' => 'Olá?' ) ) );
+$question = 'What are the membership prices?';
+$response = call_user_func( $route['callback'], new WP_REST_Request( array( 'message' => $question ) ) );
 
 if ( array( 'success' => true, 'message' => 'Resposta da IA.' ) !== $response->get_data() || 200 !== $response->get_status() ) {
 	fwrite( STDERR, "REST response did not match the AI contract.\n" );
@@ -660,12 +932,122 @@ $http_payload = json_decode( (string) ( $test_http_request['args']['body'] ?? ''
 
 if (
 	'https://api.openai.com/v1/chat/completions' !== ( $test_http_request['url'] ?? '' )
-	|| 'Trusted test system prompt.' !== ( $http_payload['messages'][0]['content'] ?? '' )
+	|| false === strpos( $http_payload['messages'][0]['content'] ?? '', 'Trusted test system prompt.' )
+	|| false === strpos( $http_payload['messages'][0]['content'] ?? '', 'Sócio Efetivo costs €22 per year.' )
+	|| false === strpos( $http_payload['messages'][0]['content'] ?? '', 'Overall confidence:' )
+	|| false !== strpos( $http_payload['messages'][0]['content'] ?? '', 'This disabled entry must not be included.' )
 	|| 'developer' !== ( $http_payload['messages'][0]['role'] ?? '' )
-	|| 'Olá?' !== ( $http_payload['messages'][1]['content'] ?? '' )
+	|| $question !== ( $http_payload['messages'][1]['content'] ?? '' )
 	|| true === ( $http_payload['stream'] ?? true )
 ) {
 	fwrite( STDERR, "OpenAI request did not contain the trusted prompt contract.\n" );
+	exit( 1 );
+}
+
+$posts_after_first_search = $test_get_posts_calls;
+$_SERVER['REMOTE_ADDR']    = '203.0.113.27';
+$cached_response           = call_user_func( $route['callback'], new WP_REST_Request( array( 'message' => $question ) ) );
+$_SERVER['REMOTE_ADDR']    = '203.0.113.25';
+
+if ( 200 !== $cached_response->get_status() || $posts_after_first_search !== $test_get_posts_calls ) {
+	fwrite( STDERR, "Repeated knowledge searches did not use the query cache.\n" );
+	exit( 1 );
+}
+
+$source_scenarios = array(
+	array( 'What is ADAM?', 'ADAM is an airsoft sports association in Mondego.' ),
+	array( 'How do I renew my membership?', 'Membership renewals are handled through the official ADAM membership service.' ),
+	array( 'What is the next event?', 'Location: Campo do Mondego' ),
+	array( 'What is the chronograph limit?', 'The official chronograph limit in this test is 1.3 joules.' ),
+);
+
+foreach ( $source_scenarios as $scenario_index => $scenario ) {
+	$_SERVER['REMOTE_ADDR'] = '203.0.113.' . ( 30 + $scenario_index );
+	$source_response        = call_user_func( $route['callback'], new WP_REST_Request( array( 'message' => $scenario[0] ) ) );
+	$source_payload         = json_decode( (string) ( $test_http_request['args']['body'] ?? '' ), true );
+
+	if (
+		200 !== $source_response->get_status()
+		|| false === strpos( $source_payload['messages'][0]['content'] ?? '', $scenario[1] )
+	) {
+		fwrite( STDERR, "A configured knowledge source did not contribute relevant context.\n" );
+		exit( 1 );
+	}
+}
+
+$_SERVER['REMOTE_ADDR'] = '203.0.113.34';
+$unselected_response    = call_user_func( $route['callback'], new WP_REST_Request( array( 'message' => 'What is the privacy policy?' ) ) );
+$unselected_payload     = json_decode( (string) ( $test_http_request['args']['body'] ?? '' ), true );
+$_SERVER['REMOTE_ADDR'] = '203.0.113.25';
+
+if (
+	200 !== $unselected_response->get_status()
+	|| false !== strpos( $unselected_payload['messages'][0]['content'] ?? '', 'Unselected private website policy content.' )
+	|| false === strpos( $unselected_payload['messages'][0]['content'] ?? '', 'No sufficiently relevant ADAM knowledge was found' )
+) {
+	fwrite( STDERR, "Unselected website pages were not excluded from knowledge.\n" );
+	exit( 1 );
+}
+
+$synthetic_source = new class() implements AdamBot\Knowledge\KnowledgeSourceInterface {
+	/** @var int */
+	public $calls = 0;
+
+	public function getKey(): string {
+		return 'faq';
+	}
+
+	public function search( string $query ): array {
+		unset( $query );
+		$this->calls++;
+		$results = array();
+
+		for ( $index = 0; $index < 7; $index++ ) {
+			$results[] = new AdamBot\Knowledge\DTO\KnowledgeResult(
+				'faq',
+				'ADAM FAQ',
+				'Synthetic result ' . $index,
+				'Synthetic topic content ' . $index,
+				'Test',
+				'',
+				95 - $index
+			);
+		}
+
+		return $results;
+	}
+};
+$synthetic_settings = new AdamBot\Knowledge\KnowledgeSettings();
+$synthetic_service  = new AdamBot\Knowledge\KnowledgeService(
+	$synthetic_settings,
+	new AdamBot\Knowledge\Search\KeywordMatcher(),
+	new AdamBot\Helpers\Logger( false ),
+	array( $synthetic_source )
+);
+$synthetic_context = $synthetic_service->search( 'unique synthetic topic' );
+$synthetic_cached  = $synthetic_service->search( 'unique synthetic topic' );
+
+if (
+	5 !== count( $synthetic_context->getResults() )
+	|| 95 !== $synthetic_context->getConfidence()
+	|| 1 !== $synthetic_source->calls
+	|| 5 !== count( $synthetic_cached->getResults() )
+) {
+	fwrite( STDERR, "Knowledge result bounds, confidence, or caching failed.\n" );
+	exit( 1 );
+}
+
+$original_knowledge_settings = $test_options['adam_bot_knowledge_settings'];
+$original_cache_version      = $test_options['adam_bot_knowledge_cache_version'];
+$test_options['adam_bot_knowledge_settings']['enabled_sources'] = array();
+$test_options['adam_bot_knowledge_cache_version']                = 99;
+$calls_before_disabled_search = $synthetic_source->calls;
+$disabled_context             = $synthetic_service->search( 'disabled source check' );
+$test_options['adam_bot_knowledge_settings']                     = $original_knowledge_settings;
+$test_options['adam_bot_knowledge_cache_version']                = $original_cache_version;
+
+if ( $disabled_context->hasResults() || $calls_before_disabled_search !== $synthetic_source->calls ) {
+	fwrite( STDERR, "Disabled knowledge sources were still searched.\n" );
 	exit( 1 );
 }
 
@@ -728,7 +1110,14 @@ if ( 'public' === $test_mode ) {
 }
 
 if ( 'admin' === $test_mode ) {
-	if ( empty( $test_admin['settings']['adam_bot_ai_settings'] ) || empty( $test_admin['menu'] ) || empty( $test_admin['submenu'] ) ) {
+	if (
+		empty( $test_admin['settings']['adam_bot_ai_settings'] )
+		|| empty( $test_admin['settings']['adam_bot_knowledge_settings'] )
+		|| empty( $test_admin['menu'] )
+		|| empty( $test_admin['submenus'] )
+		|| empty( $test_registered_post_types['adam_bot_faq'] )
+		|| empty( $test_registered_post_types['adam_bot_knowledge'] )
+	) {
 		fwrite( STDERR, "AI settings administration was not registered.\n" );
 		exit( 1 );
 	}
@@ -767,6 +1156,82 @@ if ( 'admin' === $test_mode ) {
 		|| $test_options['adam_bot_ai_settings']['openai_api_key'] !== $restored['openai_api_key']
 	) {
 		fwrite( STDERR, "Settings sanitization or default-prompt restoration failed.\n" );
+		exit( 1 );
+	}
+
+	$knowledge_callback = null;
+	foreach ( $test_admin['submenus'] as $submenu ) {
+		if ( 'adam-bot-knowledge' === ( $submenu[4] ?? '' ) ) {
+			$knowledge_callback = $submenu[5] ?? null;
+			break;
+		}
+	}
+
+	if ( ! is_callable( $knowledge_callback ) ) {
+		fwrite( STDERR, "Knowledge administration menu was not registered.\n" );
+		exit( 1 );
+	}
+
+	ob_start();
+	call_user_func( $knowledge_callback );
+	$knowledge_page = ob_get_clean();
+
+	if (
+		false === strpos( $knowledge_page, 'Knowledge Sources' )
+		|| false === strpos( $knowledge_page, 'Manage FAQs' )
+		|| false === strpos( $knowledge_page, 'About ADAM' )
+	) {
+		fwrite( STDERR, "Knowledge source and page controls were not rendered.\n" );
+		exit( 1 );
+	}
+
+	$sanitize_knowledge = $test_admin['settings']['adam_bot_knowledge_settings']['args']['sanitize_callback'];
+	$cache_version      = (int) $test_options['adam_bot_knowledge_cache_version'];
+	$sanitized_knowledge = call_user_func(
+		$sanitize_knowledge,
+		array(
+			'enabled_sources' => array( 'faq', 'invalid-provider' ),
+			'page_ids'        => array( '101', '101', '0' ),
+		)
+	);
+
+	if (
+		array( 'faq' ) !== $sanitized_knowledge['enabled_sources']
+		|| array( 101 ) !== $sanitized_knowledge['page_ids']
+		|| $cache_version >= (int) $test_options['adam_bot_knowledge_cache_version']
+	) {
+		fwrite( STDERR, "Knowledge settings sanitization or cache invalidation failed.\n" );
+		exit( 1 );
+	}
+
+	$faq_post = null;
+	foreach ( $test_posts as $post ) {
+		if ( 201 === $post->ID ) {
+			$faq_post = $post;
+			break;
+		}
+	}
+
+	$cache_version = (int) $test_options['adam_bot_knowledge_cache_version'];
+	$_POST           = array(
+		'adam_bot_knowledge_nonce'   => 'test-knowledge-nonce',
+		'adam_bot_knowledge_category' => ' Updated Membership ',
+		'adam_bot_knowledge_enabled'  => '1',
+		'adam_bot_knowledge_priority' => '150',
+	);
+
+	foreach ( $test_hooks['save_post'] ?? array() as $hook ) {
+		call_user_func( $hook['callback'], 201, $faq_post, true );
+	}
+	$_POST = array();
+
+	if (
+		'Updated Membership' !== $test_post_meta[201]['_adam_bot_category']
+		|| '1' !== $test_post_meta[201]['_adam_bot_enabled']
+		|| 100 !== $test_post_meta[201]['_adam_bot_priority']
+		|| $cache_version >= (int) $test_options['adam_bot_knowledge_cache_version']
+	) {
+		fwrite( STDERR, "Knowledge entry sanitization or save-time cache invalidation failed.\n" );
 		exit( 1 );
 	}
 }
