@@ -1,27 +1,29 @@
 === ADAM BOT ===
 Contributors: adam
-Tags: chat, assistant, frontend, accessibility
+Tags: chat, assistant, api
 Requires at least: 6.3
 Requires PHP: 7.4
 Stable tag: 1.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-A polished, dependency-free frontend shell for the ADAM virtual assistant.
+A modular foundation for the ADAM virtual assistant.
 
 == Description ==
 
-ADAM BOT Phase 1 provides an accessible floating launcher, responsive chat panel,
-suggested questions, and a local simulated response. It does not connect to an AI
-provider, store conversations, or add any administration features.
+ADAM BOT Phase 2 provides the internal plugin architecture, frontend asset
+registration, a public mount point, and a versioned REST API readiness endpoint.
+It does not include a chatbot interface or any AI functionality.
 
 == Installation ==
 
 1. Copy the `adam-bot` directory into `/wp-content/plugins/`.
 2. Activate **ADAM BOT** from the WordPress Plugins screen.
-3. Visit any public page and use the launcher in the bottom-left corner.
+3. The plugin is now ready for future UI and service integrations.
 
 == Changelog ==
 
 = 1.0.0 =
-* Initial Phase 1 frontend architecture and chat shell.
+* Added the modular Phase 2 plugin architecture.
+* Added the REST API readiness endpoint and frontend mount point.
+* Added development-aware assets and a lightweight logger.

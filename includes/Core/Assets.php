@@ -1,0 +1,96 @@
+<?php
+/**
+ * Frontend asset management.
+ *
+ * @package AdamBot
+ */
+
+declare(strict_types=1);
+
+namespace AdamBot\Core;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Registers and enqueues the public stylesheet and script.
+ */
+final class Assets {
+	/**
+	 * Registers frontend hooks.
+	 *
+	 * @return void
+	 */
+	public function register_hooks(): void {
+		if ( is_admin() ) {
+			return;
+		}
+
+		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_assets' ) );
+	}
+
+	/**
+	 * Registers and enqueues the public assets.
+	 *
+	 * @return void
+	 */
+	public function enqueue_assets(): void {
+		if ( is_admin() ) {
+			return;
+		}
+
+		$style_path  = 'assets/css/adam-bot.css';
+		$script_path = 'assets/js/adam-bot.js';
+
+		wp_register_style(
+			'adam-bot',
+			ADAM_BOT_URL . $style_path,
+			array(),
+			$this->get_asset_version( $style_path )
+		);
+
+		wp_register_script(
+			'adam-bot',
+			ADAM_BOT_URL . $script_path,
+			array(),
+			$this->get_asset_version( $script_path ),
+			true
+		);
+
+		wp_localize_script(
+			'adam-bot',
+			'adamBotSettings',
+			array(
+				'restUrl' => esc_url_raw( rest_url( 'adam-bot/v1/chat' ) ),
+				'nonce'   => wp_create_nonce( 'wp_rest' ),
+			)
+		);
+
+		wp_enqueue_style( 'adam-bot' );
+		wp_enqueue_script( 'adam-bot' );
+	}
+
+	/**
+	 * Gets the cache-busting version for an asset.
+	 *
+	 * Development builds use the file modification time. Production builds use
+	 * the stable plugin version.
+	 *
+	 * @param string $relative_path Asset path relative to the plugin directory.
+	 * @return string
+	 */
+	private function get_asset_version( string $relative_path ): string {
+		$is_development = ( defined( 'WP_DEBUG' ) && WP_DEBUG )
+			|| ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG );
+		$absolute_path  = ADAM_BOT_PATH . $relative_path;
+
+		if ( $is_development && is_readable( $absolute_path ) ) {
+			$modified_time = filemtime( $absolute_path );
+
+			if ( false !== $modified_time ) {
+				return (string) $modified_time;
+			}
+		}
+
+		return ADAM_BOT_VERSION;
+	}
+}
