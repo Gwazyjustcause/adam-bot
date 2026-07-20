@@ -14,3 +14,5 @@ defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 delete_option( 'adam_bot_ai_settings' );
 delete_option( 'adam_bot_knowledge_settings' );
 delete_option( 'adam_bot_knowledge_cache_version' );
+delete_option( 'adam_bot_experience_settings' );
+delete_option( 'adam_bot_analytics' );

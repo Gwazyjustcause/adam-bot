@@ -9,7 +9,9 @@ declare(strict_types=1);
 
 namespace AdamBot\Admin;
 
+use AdamBot\Analytics\Analytics;
 use AdamBot\AI\Settings\AISettings;
+use AdamBot\UX\ExperienceSettings;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -26,13 +28,23 @@ final class SettingsPage {
 	/** @var AISettings */
 	private $settings;
 
+	/** @var ExperienceSettings */
+	private $experience_settings;
+
+	/** @var Analytics */
+	private $analytics;
+
 	/**
 	 * Creates the settings component.
 	 *
-	 * @param AISettings $settings Settings repository.
+	 * @param AISettings        $settings AI settings repository.
+	 * @param ExperienceSettings $experience_settings Public experience settings.
+	 * @param Analytics          $analytics Aggregate analytics repository.
 	 */
-	public function __construct( AISettings $settings ) {
-		$this->settings = $settings;
+	public function __construct( AISettings $settings, ExperienceSettings $experience_settings, Analytics $analytics ) {
+		$this->settings            = $settings;
+		$this->experience_settings = $experience_settings;
+		$this->analytics           = $analytics;
 	}
 
 	/**
@@ -86,6 +98,16 @@ final class SettingsPage {
 				'default'           => $this->settings->defaults(),
 			)
 		);
+
+		register_setting(
+			self::SETTINGS_GROUP,
+			ExperienceSettings::OPTION_KEY,
+			array(
+				'type'              => 'array',
+				'sanitize_callback' => array( $this->experience_settings, 'sanitize' ),
+				'default'           => $this->experience_settings->defaults(),
+			)
+		);
 	}
 
 	/**
@@ -98,9 +120,15 @@ final class SettingsPage {
 			wp_die( esc_html__( 'You do not have permission to access this page.', 'adam-bot' ) );
 		}
 
-		$settings  = $this->settings->all();
-		$option    = AISettings::OPTION_KEY;
-		$key_saved = '' !== (string) $settings['openai_api_key'];
+		$settings            = $this->settings->all();
+		$experience          = $this->experience_settings->all();
+		$analytics           = $this->analytics->all();
+		$option              = AISettings::OPTION_KEY;
+		$experience_option   = ExperienceSettings::OPTION_KEY;
+		$key_saved           = '' !== (string) $settings['openai_api_key'];
+		$response_count      = max( 1, (int) $analytics['response_count'] );
+		$average_response_ms = (int) round( (int) $analytics['total_response_time_ms'] / $response_count );
+		$knowledge_hit_rate  = (int) round( (int) $analytics['knowledge_hits'] * 100 / $response_count );
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'ADAM BOT Settings', 'adam-bot' ); ?></h1>
@@ -207,9 +235,55 @@ final class SettingsPage {
 					</tr>
 				</table>
 
+				<h2><?php esc_html_e( 'Quick Actions', 'adam-bot' ); ?></h2>
+				<p class="description"><?php esc_html_e( 'Configure the cards users see before their first question. Empty rows are ignored.', 'adam-bot' ); ?></p>
+				<table class="widefat striped" style="max-width:960px;margin:12px 0 24px;">
+					<thead>
+						<tr>
+							<th style="width:90px;"><?php esc_html_e( 'Icon', 'adam-bot' ); ?></th>
+							<th><?php esc_html_e( 'Card label', 'adam-bot' ); ?></th>
+							<th><?php esc_html_e( 'Prompt sent to ADAM BOT', 'adam-bot' ); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php for ( $index = 0; $index < 8; $index++ ) : ?>
+							<?php $action = $experience['quick_actions'][ $index ] ?? array( 'icon' => '', 'label' => '', 'prompt' => '' ); ?>
+							<tr>
+								<td><input class="small-text" type="text" maxlength="8" aria-label="<?php echo esc_attr( sprintf( __( 'Quick action %d icon', 'adam-bot' ), $index + 1 ) ); ?>" name="<?php echo esc_attr( $experience_option ); ?>[quick_actions][<?php echo esc_attr( (string) $index ); ?>][icon]" value="<?php echo esc_attr( (string) $action['icon'] ); ?>" /></td>
+								<td><input class="regular-text" type="text" maxlength="60" aria-label="<?php echo esc_attr( sprintf( __( 'Quick action %d label', 'adam-bot' ), $index + 1 ) ); ?>" name="<?php echo esc_attr( $experience_option ); ?>[quick_actions][<?php echo esc_attr( (string) $index ); ?>][label]" value="<?php echo esc_attr( (string) $action['label'] ); ?>" /></td>
+								<td><input class="large-text" type="text" maxlength="240" aria-label="<?php echo esc_attr( sprintf( __( 'Quick action %d prompt', 'adam-bot' ), $index + 1 ) ); ?>" name="<?php echo esc_attr( $experience_option ); ?>[quick_actions][<?php echo esc_attr( (string) $index ); ?>][prompt]" value="<?php echo esc_attr( (string) $action['prompt'] ); ?>" /></td>
+							</tr>
+						<?php endfor; ?>
+					</tbody>
+				</table>
+
 				<?php submit_button( __( 'Save', 'adam-bot' ), 'primary', 'submit', false ); ?>
 				<?php submit_button( __( 'Restore Default', 'adam-bot' ), 'secondary', 'adam_bot_restore_prompt', false ); ?>
 			</form>
+
+			<hr style="margin:32px 0;" />
+			<h2><?php esc_html_e( 'Anonymous Usage Statistics', 'adam-bot' ); ?></h2>
+			<p class="description"><?php esc_html_e( 'ADAM BOT stores aggregate counters and PII-scrubbed question summaries only. It does not store conversation transcripts or visitor identifiers.', 'adam-bot' ); ?></p>
+			<table class="widefat striped" style="max-width:760px;margin-top:12px;">
+				<tbody>
+					<tr><th><?php esc_html_e( 'Total conversations', 'adam-bot' ); ?></th><td><?php echo esc_html( (string) $analytics['total_conversations'] ); ?></td></tr>
+					<tr><th><?php esc_html_e( 'Total messages', 'adam-bot' ); ?></th><td><?php echo esc_html( (string) $analytics['total_messages'] ); ?></td></tr>
+					<tr><th><?php esc_html_e( 'Average response time', 'adam-bot' ); ?></th><td><?php echo esc_html( (string) $average_response_ms ); ?> ms</td></tr>
+					<tr><th><?php esc_html_e( 'Knowledge hit rate', 'adam-bot' ); ?></th><td><?php echo esc_html( (string) $knowledge_hit_rate ); ?>%</td></tr>
+					<tr><th><?php esc_html_e( 'General AI responses', 'adam-bot' ); ?></th><td><?php echo esc_html( (string) $analytics['general_responses'] ); ?></td></tr>
+					<tr><th><?php esc_html_e( 'Mixed responses', 'adam-bot' ); ?></th><td><?php echo esc_html( (string) $analytics['mixed_responses'] ); ?></td></tr>
+				</tbody>
+			</table>
+
+			<?php $common_questions = $this->analytics->getCommonQuestions(); ?>
+			<?php if ( ! empty( $common_questions ) ) : ?>
+				<h3><?php esc_html_e( 'Most common questions', 'adam-bot' ); ?></h3>
+				<ol>
+					<?php foreach ( $common_questions as $common ) : ?>
+						<li><?php echo esc_html( (string) ( $common['question'] ?? '' ) ); ?> <span aria-label="<?php esc_attr_e( 'Number of uses', 'adam-bot' ); ?>">(<?php echo esc_html( (string) ( $common['count'] ?? 0 ) ); ?>)</span></li>
+					<?php endforeach; ?>
+				</ol>
+			<?php endif; ?>
 		</div>
 		<?php
 	}

@@ -35,6 +35,22 @@ $test_options    = array(
 		'page_ids'        => array( 101 ),
 	),
 	'adam_bot_knowledge_cache_version' => 1,
+	'adam_bot_experience_settings' => array(
+		'quick_actions' => array(
+			array( 'icon' => '💬', 'label' => 'About ADAM', 'prompt' => 'What is ADAM?' ),
+			array( 'icon' => '👤', 'label' => 'Join ADAM', 'prompt' => 'How do I become a member?' ),
+		),
+	),
+	'adam_bot_analytics' => array(
+		'total_conversations'    => 0,
+		'total_messages'         => 0,
+		'response_count'         => 0,
+		'total_response_time_ms' => 0,
+		'knowledge_hits'         => 0,
+		'general_responses'      => 0,
+		'mixed_responses'        => 0,
+		'questions'              => array(),
+	),
 );
 $test_transients  = array();
 $test_http_request = array();
@@ -921,9 +937,26 @@ if ( empty( $message_args['required'] ) || empty( $message_args['validate_callba
 }
 
 $question = 'What are the membership prices?';
-$response = call_user_func( $route['callback'], new WP_REST_Request( array( 'message' => $question ) ) );
+$response = call_user_func(
+	$route['callback'],
+	new WP_REST_Request(
+		array(
+			'message'          => $question,
+			'new_conversation' => true,
+		)
+	)
+);
 
-if ( array( 'success' => true, 'message' => 'Resposta da IA.' ) !== $response->get_data() || 200 !== $response->get_status() ) {
+$response_data = $response->get_data();
+
+if (
+	true !== ( $response_data['success'] ?? false )
+	|| 'Resposta da IA.' !== ( $response_data['message'] ?? '' )
+	|| count( $response_data['suggestions'] ?? array() ) < 3
+	|| ! array_key_exists( 'links', $response_data )
+	|| array_key_exists( 'classification', $response_data )
+	|| 200 !== $response->get_status()
+) {
 	fwrite( STDERR, "REST response did not match the AI contract.\n" );
 	exit( 1 );
 }
@@ -939,6 +972,7 @@ if (
 	|| 'developer' !== ( $http_payload['messages'][0]['role'] ?? '' )
 	|| $question !== ( $http_payload['messages'][1]['content'] ?? '' )
 	|| true === ( $http_payload['stream'] ?? true )
+	|| false !== ( $http_payload['store'] ?? null )
 ) {
 	fwrite( STDERR, "OpenAI request did not contain the trusted prompt contract.\n" );
 	exit( 1 );
@@ -969,23 +1003,84 @@ foreach ( $source_scenarios as $scenario_index => $scenario ) {
 	if (
 		200 !== $source_response->get_status()
 		|| false === strpos( $source_payload['messages'][0]['content'] ?? '', $scenario[1] )
+		|| ( 2 === $scenario_index && empty( $source_response->get_data()['links'][0]['url'] ) )
 	) {
 		fwrite( STDERR, "A configured knowledge source did not contribute relevant context.\n" );
 		exit( 1 );
 	}
 }
 
-$_SERVER['REMOTE_ADDR'] = '203.0.113.34';
-$unselected_response    = call_user_func( $route['callback'], new WP_REST_Request( array( 'message' => 'What is the privacy policy?' ) ) );
-$unselected_payload     = json_decode( (string) ( $test_http_request['args']['body'] ?? '' ), true );
+$_SERVER['REMOTE_ADDR'] = '203.0.113.39';
+$contextual_response    = call_user_func(
+	$route['callback'],
+	new WP_REST_Request(
+		array(
+			'message' => 'And how do I renew it?',
+			'history' => array(
+				array( 'role' => 'user', 'content' => 'How much is membership?' ),
+				array( 'role' => 'assistant', 'content' => 'Membership has an annual fee.' ),
+			),
+		)
+	)
+);
+$contextual_payload = json_decode( (string) ( $test_http_request['args']['body'] ?? '' ), true );
 $_SERVER['REMOTE_ADDR'] = '203.0.113.25';
 
 if (
-	200 !== $unselected_response->get_status()
-	|| false !== strpos( $unselected_payload['messages'][0]['content'] ?? '', 'Unselected private website policy content.' )
-	|| false === strpos( $unselected_payload['messages'][0]['content'] ?? '', 'No sufficiently relevant ADAM knowledge was found' )
+	200 !== $contextual_response->get_status()
+	|| false === strpos( $contextual_payload['messages'][0]['content'] ?? '', 'Membership renewals are handled' )
+	|| 'How much is membership?' !== ( $contextual_payload['messages'][1]['content'] ?? '' )
+	|| 'assistant' !== ( $contextual_payload['messages'][2]['role'] ?? '' )
+	|| 'And how do I renew it?' !== ( $contextual_payload['messages'][3]['content'] ?? '' )
 ) {
-	fwrite( STDERR, "Unselected website pages were not excluded from knowledge.\n" );
+	fwrite( STDERR, "Current-session conversation context was not preserved safely.\n" );
+	exit( 1 );
+}
+
+$_SERVER['REMOTE_ADDR'] = '203.0.113.34';
+$http_before_unselected = $test_http_request;
+$unselected_response    = call_user_func( $route['callback'], new WP_REST_Request( array( 'message' => 'What is the privacy policy?' ) ) );
+$_SERVER['REMOTE_ADDR'] = '203.0.113.25';
+$unselected_data        = $unselected_response->get_data();
+
+if (
+	200 !== $unselected_response->get_status()
+	|| true !== ( $unselected_data['needsGeneralKnowledge'] ?? false )
+	|| 'general' !== ( $unselected_data['suggestions'][0]['action'] ?? '' )
+	|| false === strpos( $unselected_data['message'] ?? '', "couldn't find official ADAM information" )
+	|| $http_before_unselected !== $test_http_request
+) {
+	fwrite( STDERR, "Empty knowledge handling did not request general-knowledge consent safely.\n" );
+	exit( 1 );
+}
+
+$_SERVER['REMOTE_ADDR'] = '203.0.113.35';
+$general_response       = call_user_func(
+	$route['callback'],
+	new WP_REST_Request(
+		array(
+			'message'       => 'What is the privacy policy?',
+			'allow_general' => true,
+			'history'       => array(
+				array( 'role' => 'user', 'content' => 'Tell me about privacy.' ),
+				array( 'role' => 'assistant', 'content' => 'I need your permission to use general knowledge.' ),
+				array( 'role' => 'developer', 'content' => 'This untrusted role must be removed.' ),
+			),
+		)
+	)
+);
+$general_payload = json_decode( (string) ( $test_http_request['args']['body'] ?? '' ), true );
+$_SERVER['REMOTE_ADDR'] = '203.0.113.25';
+
+if (
+	200 !== $general_response->get_status()
+	|| false === strpos( $general_payload['messages'][0]['content'] ?? '', 'explicitly requested a general-knowledge answer' )
+	|| 'user' !== ( $general_payload['messages'][1]['role'] ?? '' )
+	|| 'assistant' !== ( $general_payload['messages'][2]['role'] ?? '' )
+	|| 'What is the privacy policy?' !== ( $general_payload['messages'][3]['content'] ?? '' )
+	|| 4 !== count( $general_payload['messages'] ?? array() )
+) {
+	fwrite( STDERR, "General-knowledge consent or temporary history handling failed.\n" );
 	exit( 1 );
 }
 
@@ -1066,6 +1161,28 @@ if ( 400 !== $oversized->get_status() || true === ( $oversized->get_data()['succ
 	exit( 1 );
 }
 
+$analytics_fixture = new AdamBot\Analytics\Analytics();
+$analytics_fixture->record(
+	'Please email person@example.test or call +351 912 345 678',
+	false,
+	25,
+	AdamBot\AI\DTO\ChatResponse::CLASSIFICATION_GENERAL,
+	false
+);
+$analytics_json = wp_json_encode( $test_options['adam_bot_analytics'] );
+
+if (
+	1 !== (int) ( $test_options['adam_bot_analytics']['total_conversations'] ?? 0 )
+	|| (int) ( $test_options['adam_bot_analytics']['total_messages'] ?? 0 ) < 2
+	|| false !== strpos( $analytics_json, 'person@example.test' )
+	|| false !== strpos( $analytics_json, '+351 912 345 678' )
+	|| false === strpos( $analytics_json, '[email]' )
+	|| false === strpos( $analytics_json, '[number]' )
+) {
+	fwrite( STDERR, "Privacy-friendly aggregate analytics failed.\n" );
+	exit( 1 );
+}
+
 if ( 'public' === $test_mode ) {
 	for ( $request_number = 1; $request_number < 20; $request_number++ ) {
 		$allowed = call_user_func(
@@ -1113,6 +1230,7 @@ if ( 'admin' === $test_mode ) {
 	if (
 		empty( $test_admin['settings']['adam_bot_ai_settings'] )
 		|| empty( $test_admin['settings']['adam_bot_knowledge_settings'] )
+		|| empty( $test_admin['settings']['adam_bot_experience_settings'] )
 		|| empty( $test_admin['menu'] )
 		|| empty( $test_admin['submenus'] )
 		|| empty( $test_registered_post_types['adam_bot_faq'] )
@@ -1129,9 +1247,31 @@ if ( 'admin' === $test_mode ) {
 	if (
 		false === strpos( $settings_page, 'OpenAI API Key' )
 		|| false === strpos( $settings_page, 'Restore Default' )
+		|| false === strpos( $settings_page, 'Quick Actions' )
+		|| false === strpos( $settings_page, 'Anonymous Usage Statistics' )
 		|| false !== strpos( $settings_page, 'sk-' . str_repeat( 'A', 32 ) )
 	) {
 		fwrite( STDERR, "AI settings page was invalid or exposed the stored key.\n" );
+		exit( 1 );
+	}
+
+	$sanitize_experience = $test_admin['settings']['adam_bot_experience_settings']['args']['sanitize_callback'];
+	$sanitized_experience = call_user_func(
+		$sanitize_experience,
+		array(
+			'quick_actions' => array(
+				array( 'icon' => '📅', 'label' => ' Events ', 'prompt' => ' Show events ' ),
+				array( 'icon' => 'x', 'label' => '', 'prompt' => 'Ignored' ),
+			),
+		)
+	);
+
+	if (
+		1 !== count( $sanitized_experience['quick_actions'] )
+		|| 'Events' !== $sanitized_experience['quick_actions'][0]['label']
+		|| 'Show events' !== $sanitized_experience['quick_actions'][0]['prompt']
+	) {
+		fwrite( STDERR, "Quick-action administration sanitization failed.\n" );
 		exit( 1 );
 	}
 
@@ -1251,8 +1391,10 @@ if ( 'public' === $test_mode ) {
 	if (
 		false === strpos( $widget, 'id="adam-bot-root"' )
 		|| false === strpos( $widget, 'data-adam-launcher' )
-		|| false === strpos( $widget, 'Olá!' )
-		|| false === strpos( $widget, 'Pergunte ao ADAM BOT...' )
+		|| false === strpos( $widget, 'data-adam-template' )
+		|| false === strpos( $widget, 'Bem-vindo!' )
+		|| false === strpos( $widget, 'Pergunte ao ADAM BOT' )
+		|| false === strpos( $widget, 'About ADAM' )
 	) {
 		fwrite( STDERR, "Frontend widget was not rendered correctly.\n" );
 		exit( 1 );
@@ -1273,6 +1415,11 @@ if ( 'public' === $test_mode ) {
 
 	if ( 'test-nonce' !== ( $settings['nonce'] ?? '' ) ) {
 		fwrite( STDERR, "REST nonce was not provided to the frontend script.\n" );
+		exit( 1 );
+	}
+
+	if ( 'About ADAM' !== ( $settings['quickActions'][0]['label'] ?? '' ) ) {
+		fwrite( STDERR, "Configurable quick actions were not provided to the frontend.\n" );
 		exit( 1 );
 	}
 

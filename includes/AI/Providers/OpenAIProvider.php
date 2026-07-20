@@ -75,18 +75,28 @@ final class OpenAIProvider implements AIProviderInterface {
 			throw new ConfigurationException( 'Streaming transport is not implemented yet.' );
 		}
 
+		$messages = array(
+			array(
+				'role'    => 'developer',
+				'content' => $request->getSystemPrompt(),
+			),
+		);
+
+		foreach ( $request->getHistory() as $turn ) {
+			$messages[] = array(
+				'role'    => $turn['role'],
+				'content' => $turn['content'],
+			);
+		}
+
+		$messages[] = array(
+			'role'    => 'user',
+			'content' => $request->getUserMessage(),
+		);
+
 		$payload = array(
 			'model'                 => $this->model,
-			'messages'              => array(
-				array(
-					'role'    => 'developer',
-					'content' => $request->getSystemPrompt(),
-				),
-				array(
-					'role'    => 'user',
-					'content' => $request->getUserMessage(),
-				),
-			),
+			'messages'              => $messages,
 			'temperature'           => $this->temperature,
 			'max_completion_tokens' => $this->max_tokens,
 			'stream'                => false,

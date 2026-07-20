@@ -9,12 +9,22 @@ declare(strict_types=1);
 
 namespace AdamBot\Core;
 
+use AdamBot\UX\ExperienceSettings;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
  * Registers and enqueues the public stylesheet and script.
  */
 final class Assets {
+	/** @var ExperienceSettings */
+	private $experience_settings;
+
+	/** @param ExperienceSettings $experience_settings Public experience settings. */
+	public function __construct( ExperienceSettings $experience_settings ) {
+		$this->experience_settings = $experience_settings;
+	}
+
 	/**
 	 * Registers frontend hooks.
 	 *
@@ -60,8 +70,19 @@ final class Assets {
 			'adam-bot',
 			'adamBotSettings',
 			array(
-				'restUrl' => esc_url_raw( rest_url( 'adam-bot/v1/chat' ) ),
-				'nonce'   => wp_create_nonce( 'wp_rest' ),
+				'restUrl'      => esc_url_raw( rest_url( 'adam-bot/v1/chat' ) ),
+				'nonce'        => wp_create_nonce( 'wp_rest' ),
+				'quickActions' => $this->experience_settings->all()['quick_actions'],
+				'strings'      => array(
+					'error'             => __( 'Desculpe. Neste momento não consegui responder. Tente novamente daqui a alguns instantes.', 'adam-bot' ),
+					'userLabel'         => __( 'Você:', 'adam-bot' ),
+					'assistantLabel'    => __( 'ADAM BOT:', 'adam-bot' ),
+					'typing'            => __( 'ADAM BOT está a escrever', 'adam-bot' ),
+					'followUps'         => __( 'Também pode perguntar', 'adam-bot' ),
+					'relatedPages'      => __( 'Páginas relacionadas', 'adam-bot' ),
+					'generalConsent'    => __( 'Sim — usar conhecimento geral', 'adam-bot' ),
+					'restored'          => __( 'Conversa desta sessão restaurada.', 'adam-bot' ),
+				),
 			)
 		);
 

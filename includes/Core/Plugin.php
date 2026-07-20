@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace AdamBot\Core;
 
 use AdamBot\Admin\SettingsPage;
+use AdamBot\Analytics\Analytics;
 use AdamBot\AI\Providers\ProviderFactory;
 use AdamBot\AI\Services\AIService;
 use AdamBot\AI\Services\PromptBuilder;
@@ -27,6 +28,7 @@ use AdamBot\Knowledge\Sources\FAQSource;
 use AdamBot\Knowledge\Sources\ManualSource;
 use AdamBot\Knowledge\Sources\MembershipSource;
 use AdamBot\Knowledge\Sources\PageSource;
+use AdamBot\UX\ExperienceSettings;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -49,12 +51,16 @@ final class Plugin {
 	public function run(): void {
 		add_action( 'init', array( $this, 'load_textdomain' ) );
 
-		$settings           = new AISettings();
-		$knowledge_settings = new KnowledgeSettings();
-		$logger             = new Logger();
+		$settings            = new AISettings();
+		$knowledge_settings  = new KnowledgeSettings();
+		$experience_settings = new ExperienceSettings();
+		$analytics            = new Analytics();
+		$logger               = new Logger();
 
 		$settings->ensureDefaults();
 		$knowledge_settings->ensureDefaults();
+		$experience_settings->ensureDefaults();
+		$analytics->ensureDefaults();
 
 		$matcher           = new KeywordMatcher();
 		$knowledge_service = new KnowledgeService(
@@ -74,11 +80,11 @@ final class Plugin {
 		$ai_service       = new AIService( $settings, $provider_factory, $prompt_builder, $logger );
 
 		$this->components = array(
-			new Frontend(),
-			new API( $ai_service, new RateLimiter() ),
-			new SettingsPage( $settings ),
+			new Frontend( $experience_settings ),
+			new API( $ai_service, new RateLimiter(), $analytics ),
+			new SettingsPage( $settings, $experience_settings, $analytics ),
 			new KnowledgeAdmin( $knowledge_settings ),
-			new Assets(),
+			new Assets( $experience_settings ),
 		);
 
 		foreach ( $this->components as $component ) {

@@ -3,7 +3,7 @@ Contributors: adam
 Tags: chat, assistant, api
 Requires at least: 6.3
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -16,6 +16,12 @@ ADAM REST endpoint. The frontend remains independent of the configured AI
 provider. OpenAI is supported through a provider-neutral service layer, and a
 lightweight knowledge engine supplies relevant information from enabled ADAM
 sources before each response.
+
+The Phase 6 experience adds administrator-configurable quick actions, safe rich
+Markdown responses, contextual follow-ups, trusted website navigation, and a
+consent gate for clearly labelled general-knowledge answers. Conversation
+context and recovery remain in browser session storage only. Aggregate analytics
+store no visitor identifiers or conversation transcripts.
 
 == Installation ==
 
@@ -35,6 +41,14 @@ filters. Event plugins can also expose their post types through
 `adam_bot_knowledge_invalidate_cache` action after external source data changes.
 
 == Changelog ==
+
+= 1.4.0 =
+* Added configurable quick-action cards and contextual follow-up suggestions.
+* Added safe Markdown rendering, trusted page buttons, and smart raw-link labels.
+* Added temporary session context, conversation recovery, and a first-visit welcome.
+* Added explicit consent before non-official general-knowledge answers.
+* Added internal official/general/mixed classification and privacy-friendly aggregate analytics.
+* Added lazy chat hydration, request debouncing, session caching, mobile keyboard handling, and expanded accessibility.
 
 = 1.3.0 =
 * Added the Phase 5 WordPress-native knowledge engine with confidence scoring.

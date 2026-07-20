@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace AdamBot\API;
 
+use AdamBot\Analytics\Analytics;
 use AdamBot\AI\DTO\ChatRequest;
 use AdamBot\AI\Services\AIService;
 use AdamBot\AI\Settings\AISettings;
@@ -32,15 +33,20 @@ final class API {
 	/** @var RateLimiter */
 	private $rate_limiter;
 
+	/** @var Analytics */
+	private $analytics;
+
 	/**
 	 * Creates the REST API component.
 	 *
 	 * @param AIService   $ai_service Provider-neutral AI service.
 	 * @param RateLimiter $rate_limiter Public request limiter.
+	 * @param Analytics   $analytics Privacy-friendly aggregate analytics.
 	 */
-	public function __construct( AIService $ai_service, RateLimiter $rate_limiter ) {
+	public function __construct( AIService $ai_service, RateLimiter $rate_limiter, Analytics $analytics ) {
 		$this->ai_service   = $ai_service;
 		$this->rate_limiter = $rate_limiter;
+		$this->analytics    = $analytics;
 	}
 
 	/**
@@ -72,6 +78,22 @@ final class API {
 						'type'              => 'string',
 						'sanitize_callback' => array( $this, 'sanitizeMessage' ),
 						'validate_callback' => array( $this, 'validateMessage' ),
+					),
+					'history' => array(
+						'description' => __( 'Temporary current-session conversation context.', 'adam-bot' ),
+						'required'    => false,
+						'type'        => 'array',
+						'maxItems'    => 10,
+					),
+					'allow_general' => array(
+						'description' => __( 'Explicit opt-in to a clearly labelled general-knowledge answer.', 'adam-bot' ),
+						'required'    => false,
+						'type'        => 'boolean',
+					),
+					'new_conversation' => array(
+						'description' => __( 'Whether this is the first request in the browser session.', 'adam-bot' ),
+						'required'    => false,
+						'type'        => 'boolean',
 					),
 				),
 			)
@@ -107,7 +129,21 @@ final class API {
 			);
 		}
 
-		$response = $this->ai_service->generateResponse( new ChatRequest( $message ) );
+		$allow_general    = $this->toBoolean( $request->get_param( 'allow_general' ) );
+		$new_conversation = $this->toBoolean( $request->get_param( 'new_conversation' ) );
+		$history          = $this->sanitizeHistory( $request->get_param( 'history' ) );
+		$response         = $this->ai_service->generateResponse(
+			new ChatRequest( $message, '', false, $history, $allow_general )
+		);
+
+		$this->analytics->record(
+			$message,
+			$new_conversation,
+			$response->getResponseTimeMs(),
+			$response->isSuccess() && ! $response->needsGeneralConsent() ? $response->getClassification() : '',
+			$response->isSuccess() && $response->hasKnowledgeHit(),
+			! $allow_general
+		);
 
 		return new WP_REST_Response(
 			$response->toPublicArray(),
@@ -141,5 +177,47 @@ final class API {
 			: strlen( $value );
 
 		return $length <= AISettings::MAX_PROMPT_CHARACTERS;
+	}
+
+	/**
+	 * Sanitizes bounded context supplied from sessionStorage.
+	 *
+	 * @param mixed $value Candidate history.
+	 * @return array<int, array<string, string>>
+	 */
+	private function sanitizeHistory( $value ): array {
+		if ( ! is_array( $value ) ) {
+			return array();
+		}
+
+		$history = array();
+
+		foreach ( array_slice( $value, -10 ) as $turn ) {
+			if ( ! is_array( $turn ) ) {
+				continue;
+			}
+
+			$role    = sanitize_key( (string) ( $turn['role'] ?? '' ) );
+			$content = sanitize_textarea_field( is_scalar( $turn['content'] ?? null ) ? (string) $turn['content'] : '' );
+
+			if ( ! in_array( $role, array( 'user', 'assistant' ), true ) || '' === trim( $content ) ) {
+				continue;
+			}
+
+			if ( function_exists( 'mb_substr' ) ) {
+				$content = mb_substr( $content, 0, 2000 );
+			} else {
+				$content = substr( $content, 0, 2000 );
+			}
+
+			$history[] = compact( 'role', 'content' );
+		}
+
+		return $history;
+	}
+
+	/** @return bool */
+	private function toBoolean( $value ): bool {
+		return true === $value || 1 === $value || '1' === $value || 'true' === $value;
 	}
 }
