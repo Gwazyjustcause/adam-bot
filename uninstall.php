@@ -19,7 +19,11 @@ delete_option( 'adam_bot_analytics' );
 delete_option( 'adam_bot_provider_health' );
 delete_option( 'adam_bot_maintenance_status' );
 delete_option( 'adam_bot_saved_searches' );
+delete_option( 'adam_bot_site_index_status' );
+delete_option( 'adam_bot_site_index_translation_queue' );
 
 if ( function_exists( 'wp_clear_scheduled_hook' ) ) {
 	wp_clear_scheduled_hook( 'adam_bot_daily_maintenance' );
+	wp_clear_scheduled_hook( 'adam_bot_initial_site_index' );
+	wp_clear_scheduled_hook( 'adam_bot_site_index_translation_batch' );
 }

@@ -260,7 +260,10 @@ final class SearchService {
 		$unique = array();
 
 		foreach ( $results as $result ) {
-			$key = $result->getId();
+			if ( ! $result instanceof KnowledgeResult ) {
+				continue;
+			}
+			$key = md5( $result->getLanguage() . '|' . $this->matcher->normalize( $result->getTitle() ) . '|' . $this->matcher->normalize( $result->getContent() ) . '|' . $result->getUrl() );
 			if ( isset( $seen[ $key ] ) ) {
 				continue;
 			}

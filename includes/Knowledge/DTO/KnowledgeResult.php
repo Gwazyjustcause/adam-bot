@@ -66,6 +66,9 @@ final class KnowledgeResult {
 	/** @var array<int, array<string, mixed>> */
 	private $components;
 
+	/** @var string */
+	private $language;
+
 	/**
 	 * Creates a knowledge result.
 	 *
@@ -115,6 +118,7 @@ final class KnowledgeResult {
 		$this->related          = $this->sanitizeRelated( $attributes['related'] ?? array() );
 		$this->object_id        = max( 0, (int) ( $attributes['object_id'] ?? 0 ) );
 		$this->components       = isset( $attributes['components'] ) && is_array( $attributes['components'] ) ? array_values( array_filter( $attributes['components'], 'is_array' ) ) : array();
+		$this->language         = in_array( sanitize_key( (string) ( $attributes['language'] ?? '' ) ), array( 'pt', 'en' ), true ) ? sanitize_key( (string) $attributes['language'] ) : '';
 	}
 
 	/** @return string */
@@ -202,9 +206,13 @@ final class KnowledgeResult {
 		return $this->components;
 	}
 
+	public function getLanguage(): string {
+		return $this->language;
+	}
+
 	/** @return string */
 	public function getId(): string {
-		return md5( $this->source . '|' . $this->title . '|' . $this->url );
+		return md5( $this->source . '|' . $this->language . '|' . $this->title . '|' . $this->url );
 	}
 
 	/**
@@ -288,6 +296,7 @@ final class KnowledgeResult {
 			'related'         => $this->related,
 			'object_id'       => $this->object_id,
 			'components'      => $this->components,
+			'language'        => $this->language,
 		);
 	}
 

@@ -89,6 +89,7 @@ final class FAQSource implements KnowledgeSourceInterface {
 						'response_blocks' => $blocks,
 						'related'         => $this->related( $post ),
 						'object_id'       => (int) $post->ID,
+						'language'        => (string) get_post_meta( $post->ID, EntrySchema::LANGUAGE_META, true ),
 					)
 				);
 			}

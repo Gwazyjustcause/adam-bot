@@ -28,6 +28,11 @@ final class EntrySchema {
 	public const BUTTON_URL_META = '_adam_bot_button_url';
 	public const RELATED_ENTRIES_META = '_adam_bot_related_entries';
 	public const RESPONSE_BLOCKS_META = '_adam_bot_response_blocks';
+	public const LANGUAGE_META = '_adam_bot_language';
+	public const GENERATED_META = '_adam_bot_generated';
+	public const SOURCE_POST_META = '_adam_bot_source_post_id';
+	public const SOURCE_KEY_META = '_adam_bot_source_key';
+	public const SOURCE_HASH_META = '_adam_bot_source_hash';
 	public const LEGACY_CATEGORY_META = '_adam_bot_category';
 
 	public const TERM_COLOR_META = '_adam_bot_category_color';
@@ -47,7 +52,17 @@ final class EntrySchema {
 			self::BUTTON_URL_META,
 			self::RELATED_ENTRIES_META,
 			self::RESPONSE_BLOCKS_META,
+			self::LANGUAGE_META,
+			self::GENERATED_META,
+			self::SOURCE_POST_META,
+			self::SOURCE_KEY_META,
+			self::SOURCE_HASH_META,
 		);
+	}
+
+	/** Limits stored content languages to the two languages supported by the public assistant. */
+	public static function sanitizeLanguage( $value ): string {
+		return 'en' === sanitize_key( (string) $value ) ? 'en' : 'pt';
 	}
 
 	/** @param mixed $value Comma- or line-separated terms. @return array<int, string> */

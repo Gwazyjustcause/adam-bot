@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace AdamBot\Knowledge\Search;
 
 use AdamBot\Knowledge\DTO\KnowledgeResult;
+use AdamBot\Knowledge\LanguageDetector;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -20,9 +21,13 @@ final class ResultRanker {
 	/** @var KeywordMatcher */
 	private $matcher;
 
+	/** @var LanguageDetector */
+	private $language_detector;
+
 	/** @param KeywordMatcher $matcher Shared text normalizer. */
-	public function __construct( KeywordMatcher $matcher ) {
-		$this->matcher = $matcher;
+	public function __construct( KeywordMatcher $matcher, ?LanguageDetector $language_detector = null ) {
+		$this->matcher           = $matcher;
+		$this->language_detector = $language_detector ?: new LanguageDetector();
 	}
 
 	/**
@@ -37,6 +42,7 @@ final class ResultRanker {
 	public function rank( string $query, array $candidates, string $topic = '', array $recent_result_ids = array() ): array {
 		$normalized_query = $this->matcher->normalize( $query );
 		$query_terms      = $this->terms( $normalized_query );
+		$query_language   = $this->language_detector->detect( $query );
 		$ranked           = array();
 
 		foreach ( $candidates as $candidate ) {
@@ -82,6 +88,10 @@ final class ResultRanker {
 
 			if ( in_array( $candidate->getId(), $recent_result_ids, true ) && $score > 0 ) {
 				$score += 5;
+			}
+
+			if ( $score > 0 && '' !== $candidate->getLanguage() ) {
+				$score = $candidate->getLanguage() === $query_language ? $score + 12 : (int) round( $score * 0.55 );
 			}
 
 			$score    = (int) round( $score * $candidate->getSearchWeight() / 100 );

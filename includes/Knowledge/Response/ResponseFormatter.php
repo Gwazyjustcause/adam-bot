@@ -13,6 +13,7 @@ use AdamBot\Knowledge\DTO\KnowledgeResponse;
 use AdamBot\Knowledge\DTO\KnowledgeResult;
 use AdamBot\Knowledge\DTO\SearchResultSet;
 use AdamBot\Knowledge\Search\KeywordMatcher;
+use AdamBot\Knowledge\LanguageDetector;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -21,8 +22,12 @@ final class ResponseFormatter {
 	/** @var KeywordMatcher */
 	private $matcher;
 
-	public function __construct( KeywordMatcher $matcher ) {
-		$this->matcher = $matcher;
+	/** @var LanguageDetector */
+	private $language_detector;
+
+	public function __construct( KeywordMatcher $matcher, ?LanguageDetector $language_detector = null ) {
+		$this->matcher           = $matcher;
+		$this->language_detector = $language_detector ?: new LanguageDetector();
 	}
 
 	public function format( SearchResultSet $search, string $question ): KnowledgeResponse {
@@ -30,6 +35,7 @@ final class ResponseFormatter {
 		$top        = $search->getTopResult();
 		$links      = array();
 		$cards      = array();
+		$language   = $this->language_detector->detect( $question );
 
 		if ( in_array( $level, array( 'high', 'medium' ), true ) && $top instanceof KnowledgeResult ) {
 			$cards = $this->buildComponentCards( $search->getResults() );
@@ -42,14 +48,14 @@ final class ResponseFormatter {
 				$links   = $this->buildComponentLinks( $top );
 			} else {
 				$answer  = $this->formatAnswer( $top );
-				$message = 'medium' === $level ? "Encontrei uma resposta que poderá ajudá-lo.\n\n" . $answer : $answer;
+				$message = 'medium' === $level ? ( 'en' === $language ? "I found an answer that may help.\n\n" : "Encontrei uma resposta que poderá ajudá-lo.\n\n" ) . $answer : $answer;
 				$links = array_slice( array_merge( $this->buildComponentLinks( $top ), $this->buildBlockLinks( $top ), $this->buildLinks( array( $top ) ) ), 0, 4 );
 			}
 		} elseif ( 'low' === $level ) {
-			$message = 'Encontrei algumas páginas relacionadas que poderão ajudar.';
+			$message = 'en' === $language ? 'I found some related pages that may help.' : 'Encontrei algumas páginas relacionadas que poderão ajudar.';
 			$links   = $this->buildLinks( $search->getFallbackResults() );
 		} else {
-			$message = "Não encontrei uma resposta para essa questão.\n\nExperimente reformular a pergunta ou consulte as páginas abaixo.";
+			$message = 'en' === $language ? "I could not find an answer to that question.\n\nTry rephrasing it or view the pages below." : "Não encontrei uma resposta para essa questão.\n\nExperimente reformular a pergunta ou consulte as páginas abaixo.";
 			$links = $this->buildLinks( $search->getFallbackResults() );
 		}
 

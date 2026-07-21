@@ -23,6 +23,8 @@ use AdamBot\Knowledge\KnowledgeSettings;
 use AdamBot\Knowledge\DuplicateDetector;
 use AdamBot\Knowledge\ImportExport;
 use AdamBot\Knowledge\RevisionManager;
+use AdamBot\Knowledge\LanguageDetector;
+use AdamBot\Knowledge\SiteKnowledgeIndexer;
 use AdamBot\Knowledge\Dynamic\BuiltInProviders;
 use AdamBot\Knowledge\Dynamic\DynamicProviderRegistry;
 use AdamBot\Knowledge\Dynamic\IntentDetector;
@@ -95,8 +97,9 @@ final class Plugin {
 		$experience_settings->ensureDefaults();
 		$analytics->ensureDefaults();
 
-		$matcher        = new KeywordMatcher();
-		$result_ranker  = new ResultRanker( $matcher );
+		$matcher           = new KeywordMatcher();
+		$language_detector = new LanguageDetector();
+		$result_ranker     = new ResultRanker( $matcher, $language_detector );
 		$intent_detector  = new IntentDetector( $matcher );
 		$duplicate_detector = new DuplicateDetector( $matcher );
 		$provider_resolver = new ProviderResolver( $this->dynamic_providers, $intent_detector, $knowledge_settings, $matcher, $logger );
@@ -113,26 +116,30 @@ final class Plugin {
 			),
 			$provider_resolver
 		);
-		$response_formatter = new ResponseFormatter( $matcher );
+		$response_formatter = new ResponseFormatter( $matcher, $language_detector );
 		$knowledge_admin    = new KnowledgeAdmin( $knowledge_settings, $search_service, $response_formatter, $duplicate_detector );
+		$site_indexer       = new SiteKnowledgeIndexer( $language_detector );
 		$search_insights    = new SearchInsights( $duplicate_detector, $intent_detector );
+		$knowledge_admin->register_content_types();
 
 		$this->components = array(
 			new Frontend( $experience_settings ),
 			new API( $search_service, $response_formatter, new RateLimiter(), $analytics, $knowledge_settings ),
-			new SettingsPage( $experience_settings, $analytics, $knowledge_admin, $search_insights ),
+			new SettingsPage( $experience_settings, $analytics, $knowledge_admin, $search_insights, $site_indexer ),
 			new ProductionAdmin( $analytics, $this->dynamic_providers, $provider_monitor ),
 			$provider_monitor,
 			new Maintenance( $knowledge_settings, $search_service, $analytics ),
 			$knowledge_admin,
 			new RevisionManager(),
 			new ImportExport(),
+			$site_indexer,
 			new Assets( $experience_settings ),
 		);
 
 		foreach ( $this->components as $component ) {
 			$component->register_hooks();
 		}
+		$site_indexer->maybeScheduleInitial();
 	}
 
 	/**

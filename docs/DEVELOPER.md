@@ -91,6 +91,19 @@ Evite consultas no construtor do fornecedor. `isAvailable()` deve ser barato; a 
 - `adam_bot_dynamic_provider_error`: comunica uma falha de fornecedor ao monitor.
 - `adam_bot_maintenance_optimize_storage`: permite manutenção adicional diária sem acoplar o núcleo.
 - `adam_bot_knowledge_event_post_types` e `adam_bot_knowledge_event_post_item`: compatibilidade opt-in para fontes de eventos WordPress.
+- `adam_bot_site_index_post_types`: limita ou alarga os tipos de conteúdo públicos indexados.
+- `adam_bot_site_index_include_post`: exclui uma página pública da indexação editorial.
+- `adam_bot_site_index_source_html`: adapta o HTML de origem antes da extração de secções.
+- `adam_bot_site_index_translation`: substitui a tradução PT→EN; devolva uma string traduzida ou `null` para usar o serviço predefinido.
+- `adam_bot_site_index_remote_translation`: devolva `false` para impedir pedidos ao serviço de tradução predefinido.
+
+## Indexação do website
+
+Na primeira inicialização, `SiteKnowledgeIndexer` agenda uma importação única de todos os posts publicados pertencentes a tipos públicos. Cada secção editorial relevante origina posts normais `adam_bot_knowledge` e `adam_bot_faq`; estes não ficam bloqueados e participam em revisões, exportação e pesquisa como qualquer entrada criada à mão. Formulários, controlos, palavras-passe e linhas com dados de pagamento são removidos antes da extração.
+
+O metadado de proveniência permite que **Reconstruir a base de conhecimento** atualize apenas entradas geradas. Entradas manuais nunca são alteradas. A reconstrução é a única operação que volta a aplicar o conteúdo da página depois da primeira importação.
+
+Páginas inglesas fornecidas por Polylang ou WPML são indexadas diretamente. Quando não existem, a tradução de conteúdo público decorre em pequenos lotes WP-Cron e cria uma variante inglesa independente na base de dados. O serviço remoto predefinido é MyMemory; integrações empresariais devem substituí-lo através de `adam_bot_site_index_translation`. Nunca envie conteúdo privado neste filtro.
 
 ## Segurança e privacidade
 

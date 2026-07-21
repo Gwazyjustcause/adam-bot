@@ -3,7 +3,7 @@ Contributors: adam
 Tags: chat, assistant, knowledge
 Requires at least: 6.3
 Requires PHP: 7.4
-Stable tag: 1.8.1
+Stable tag: 1.9.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -39,6 +39,11 @@ maintenance, administrator notices, object caching, saved searches, bulk and
 keyboard ordering, diagnostic search output for administrators, and a complete
 accessibility and mobile pass. The public and administrative interface is in
 European Portuguese.
+
+Version 1.9 indexes public WordPress pages and news once into ordinary, editable
+Knowledge Base and FAQ posts. Portuguese source sections receive persisted English
+variants in the background when no translated page exists. Administrators can
+review every generated field and explicitly rebuild the index from Settings.
 
 == Installation ==
 
@@ -107,12 +112,22 @@ plugin-specific post-type or metadata assumptions. Trigger
 
 == Privacy and Connectivity ==
 
-Chat answers make no external HTTP requests and require no API key, model, AI
-provider, or internet connection. Conversation messages are held only in browser
+Chat answers make no external HTTP requests and require no API key, model, or AI
+provider. During website indexing only, public Portuguese source text may be sent
+to the MyMemory translation endpoint to create the stored English variant. This
+can be replaced with `adam_bot_site_index_translation` or disabled with
+`adam_bot_site_index_remote_translation`. Conversation messages are never sent
+to that service and are held only in browser
 session storage for recovery and are cleared when the browsing session ends.
 Server analytics contain aggregate counters and scrubbed common-question samples.
 
 == Changelog ==
+
+= 1.9.0 =
+* Added one-time automatic indexing of all published public WordPress pages and news into editable Knowledge Base and FAQ entries.
+* Added structured section extraction, natural questions, keywords, categories, source pages, and contextual navigation buttons without placeholder content.
+* Added persisted Portuguese/English variants, background translation, language-aware ranking, and bilingual fallback messages.
+* Added provenance metadata, explicit administrator rebuild controls, stale-entry handling, revision/export support, and protected manual entries from automatic changes.
 
 = 1.8.1 =
 * Deferred text-domain loading and all translated service initialization until the WordPress `init` hook.

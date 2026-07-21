@@ -193,6 +193,11 @@ final class ImportExport {
 				'related_entries' => implode( '|', EntrySchema::sanitizeRelatedIds( get_post_meta( $post->ID, EntrySchema::RELATED_ENTRIES_META, true ) ) ),
 				'response_blocks' => (string) wp_json_encode( EntrySchema::sanitizeBlocks( get_post_meta( $post->ID, EntrySchema::RESPONSE_BLOCKS_META, true ) ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
 				'order'           => (string) ( $post->menu_order ?? 0 ),
+				'language'        => EntrySchema::sanitizeLanguage( get_post_meta( $post->ID, EntrySchema::LANGUAGE_META, true ) ),
+				'generated'       => '1' === (string) get_post_meta( $post->ID, EntrySchema::GENERATED_META, true ) ? '1' : '0',
+				'source_post_id'  => (string) absint( get_post_meta( $post->ID, EntrySchema::SOURCE_POST_META, true ) ),
+				'source_key'      => sanitize_text_field( (string) get_post_meta( $post->ID, EntrySchema::SOURCE_KEY_META, true ) ),
+				'source_hash'     => sanitize_text_field( (string) get_post_meta( $post->ID, EntrySchema::SOURCE_HASH_META, true ) ),
 			);
 		}
 		return $rows;
@@ -200,7 +205,7 @@ final class ImportExport {
 
 	/** @return array<string,string> */
 	private function emptyRow(): array {
-		return array_fill_keys( array( 'type', 'external_id', 'title', 'question', 'answer', 'status', 'visibility', 'categories', 'category_metadata', 'keywords', 'synonyms', 'priority', 'search_weight', 'related_page', 'button_text', 'button_url', 'related_entries', 'response_blocks', 'order' ), '' );
+		return array_fill_keys( array( 'type', 'external_id', 'title', 'question', 'answer', 'status', 'visibility', 'categories', 'category_metadata', 'keywords', 'synonyms', 'priority', 'search_weight', 'related_page', 'button_text', 'button_url', 'related_entries', 'response_blocks', 'order', 'language', 'generated', 'source_post_id', 'source_key', 'source_hash' ), '' );
 	}
 
 	/** @return array<int,array<string,mixed>> */
@@ -278,6 +283,11 @@ final class ImportExport {
 			EntrySchema::RELATED_ENTRIES_META => EntrySchema::sanitizeRelatedIds( explode( '|', (string) ( $row['related_entries'] ?? '' ) ) ),
 			EntrySchema::RESPONSE_BLOCKS_META => EntrySchema::sanitizeBlocks( $blocks ),
 			EntrySchema::ENABLED_META         => '1',
+			EntrySchema::LANGUAGE_META        => EntrySchema::sanitizeLanguage( $row['language'] ?? 'pt' ),
+			EntrySchema::GENERATED_META       => '1' === (string) ( $row['generated'] ?? '0' ) ? '1' : '0',
+			EntrySchema::SOURCE_POST_META     => absint( $row['source_post_id'] ?? 0 ),
+			EntrySchema::SOURCE_KEY_META      => sanitize_text_field( (string) ( $row['source_key'] ?? '' ) ),
+			EntrySchema::SOURCE_HASH_META     => sanitize_text_field( (string) ( $row['source_hash'] ?? '' ) ),
 		);
 		foreach ( $meta as $key => $value ) {
 			update_post_meta( (int) $post_id, $key, $value );

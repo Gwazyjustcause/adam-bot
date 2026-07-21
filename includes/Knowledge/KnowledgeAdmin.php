@@ -49,7 +49,6 @@ final class KnowledgeAdmin {
 
 	/** @return void */
 	public function register_hooks(): void {
-		add_action( 'init', array( $this, 'register_content_types' ) );
 		add_action( 'admin_menu', array( $this, 'register_menu' ), 20 );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 		add_action( 'add_meta_boxes', array( $this, 'register_meta_boxes' ) );
@@ -223,6 +222,7 @@ final class KnowledgeAdmin {
 		$question   = (string) get_post_meta( $post->ID, EntrySchema::QUESTION_META, true );
 		$visibility = (string) get_post_meta( $post->ID, EntrySchema::VISIBILITY_META, true );
 		$visibility = in_array( $visibility, array( 'published', 'hidden' ), true ) ? $visibility : 'published';
+		$language   = EntrySchema::sanitizeLanguage( get_post_meta( $post->ID, EntrySchema::LANGUAGE_META, true ) );
 		?>
 		<p><label for="adam-bot-question"><strong><?php esc_html_e( 'Pergunta', 'adam-bot' ); ?></strong></label></p>
 		<input class="widefat" type="text" id="adam-bot-question" name="adam_bot_question" maxlength="500" value="<?php echo esc_attr( $question ); ?>" placeholder="<?php esc_attr_e( 'Como posso tornar-me sócio?', 'adam-bot' ); ?>" />
@@ -231,6 +231,11 @@ final class KnowledgeAdmin {
 		<select id="adam-bot-visibility" name="adam_bot_visibility">
 			<option value="published" <?php selected( $visibility, 'published' ); ?>><?php esc_html_e( 'Publicado', 'adam-bot' ); ?></option>
 			<option value="hidden" <?php selected( $visibility, 'hidden' ); ?>><?php esc_html_e( 'Oculto', 'adam-bot' ); ?></option>
+		</select>
+		<p><label for="adam-bot-language"><strong><?php esc_html_e( 'Idioma', 'adam-bot' ); ?></strong></label></p>
+		<select id="adam-bot-language" name="adam_bot_language">
+			<option value="pt" <?php selected( $language, 'pt' ); ?>><?php esc_html_e( 'Português', 'adam-bot' ); ?></option>
+			<option value="en" <?php selected( $language, 'en' ); ?>><?php esc_html_e( 'Inglês', 'adam-bot' ); ?></option>
 		</select>
 		<p class="description"><?php esc_html_e( 'Use o painel Publicar para guardar como rascunho. As entradas ocultas continuam editáveis, mas não são pesquisadas.', 'adam-bot' ); ?></p>
 		<?php
@@ -396,6 +401,7 @@ final class KnowledgeAdmin {
 			EntrySchema::BUTTON_URL_META      => esc_url_raw( wp_unslash( (string) ( $_POST['adam_bot_button_url'] ?? '' ) ) ),
 			EntrySchema::RELATED_ENTRIES_META => EntrySchema::sanitizeRelatedIds( $_POST['adam_bot_related_entries'] ?? array(), $post_id ),
 			EntrySchema::RESPONSE_BLOCKS_META => EntrySchema::sanitizeBlocks( $_POST['adam_bot_response_blocks'] ?? array() ),
+			EntrySchema::LANGUAGE_META        => EntrySchema::sanitizeLanguage( $_POST['adam_bot_language'] ?? 'pt' ),
 		);
 		$metadata_changed = false;
 		foreach ( $meta as $key => $value ) {

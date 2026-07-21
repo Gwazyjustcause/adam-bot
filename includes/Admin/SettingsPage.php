@@ -14,6 +14,7 @@ use AdamBot\Analytics\SearchInsights;
 use AdamBot\Knowledge\KnowledgeAdmin;
 use AdamBot\Knowledge\Sources\FAQSource;
 use AdamBot\Knowledge\Sources\ManualSource;
+use AdamBot\Knowledge\SiteKnowledgeIndexer;
 use AdamBot\UX\ExperienceSettings;
 
 defined( 'ABSPATH' ) || exit;
@@ -34,11 +35,15 @@ final class SettingsPage {
 	/** @var SearchInsights */
 	private $search_insights;
 
-	public function __construct( ExperienceSettings $experience_settings, Analytics $analytics, KnowledgeAdmin $knowledge_admin, SearchInsights $search_insights ) {
+	/** @var SiteKnowledgeIndexer */
+	private $site_indexer;
+
+	public function __construct( ExperienceSettings $experience_settings, Analytics $analytics, KnowledgeAdmin $knowledge_admin, SearchInsights $search_insights, SiteKnowledgeIndexer $site_indexer ) {
 		$this->experience_settings = $experience_settings;
 		$this->analytics           = $analytics;
 		$this->knowledge_admin     = $knowledge_admin;
 		$this->search_insights     = $search_insights;
+		$this->site_indexer        = $site_indexer;
 	}
 
 	/** @return void */
@@ -223,6 +228,9 @@ final class SettingsPage {
 				<?php $this->knowledge_admin->render_settings_fields(); ?>
 				<?php submit_button( __( 'Guardar definições de conhecimento', 'adam-bot' ) ); ?>
 			</form>
+
+			<hr style="margin:32px 0;" />
+			<?php $this->site_indexer->renderTools(); ?>
 
 			<hr style="margin:32px 0;" />
 			<?php $this->knowledge_admin->render_transfer_tools(); ?>

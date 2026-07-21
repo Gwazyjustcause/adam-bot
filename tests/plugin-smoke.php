@@ -447,7 +447,7 @@ test_assert( false !== strpos( $contextual['message'] ?? '', '€22' ), 'Lightwe
 test_assert( 'membership' === ( $contextual['context']['topic'] ?? '' ), 'Follow-up response lost its topic.' );
 
 $unknown = test_chat( array( 'message' => 'Where is the quantum banana tractor?' ) )->get_data();
-test_assert( false !== strpos( $unknown['message'] ?? '', 'Não encontrei uma resposta' ), 'No-confidence response was not deterministic.' );
+test_assert( false !== strpos( $unknown['message'] ?? '', 'I could not find an answer' ), 'English no-confidence response was not deterministic.' );
 test_assert( ! isset( $unknown['needsGeneralKnowledge'] ), 'No-confidence response still offers general AI.' );
 
 $oversized = test_chat( array( 'message' => str_repeat( 'x', 4001 ) ) );
@@ -584,6 +584,27 @@ $weighted_high = new AdamBot\Knowledge\DTO\KnowledgeResult( 'custom', 'Custom', 
 $weighted = $ranker->rank( 'airsofting', array( $weighted_low, $weighted_high ) );
 test_assert( 'Specific' === $weighted[0]->getTitle() && $weighted[0]->getScore() > $weighted[1]->getScore(), 'Keywords or Search Weight did not affect ranking.' );
 
+$english_candidate = new AdamBot\Knowledge\DTO\KnowledgeResult( 'manual', 'Knowledge', 'Membership renewal', 'Renew the annual membership online.', '', '/renew', 0, array(), 50, array( 'keywords' => array( 'membership', 'renewal' ), 'language' => 'en' ) );
+$portuguese_candidate = new AdamBot\Knowledge\DTO\KnowledgeResult( 'manual', 'Knowledge', 'Renovação membership', 'Informação sobre membership renewal.', '', '/renew', 0, array(), 50, array( 'keywords' => array( 'membership', 'renewal' ), 'language' => 'pt' ) );
+$language_ranked = $ranker->rank( 'How do I renew my membership?', array( $portuguese_candidate, $english_candidate ) );
+test_assert( 'en' === $language_ranked[0]->getLanguage() && $language_ranked[0]->getScore() > $language_ranked[1]->getScore(), 'Search ranking did not prefer the visitor language.' );
+
+$indexer = new AdamBot\Knowledge\SiteKnowledgeIndexer();
+$extract_method = new ReflectionMethod( $indexer, 'extractSections' );
+$source_post = (object) array(
+	'ID' => 902, 'post_title' => 'Quem Somos', 'post_name' => 'quem-somos',
+	'post_content' => '<h2>A Nossa Missão</h2><p>A ADAM aproxima praticantes, equipas e organizações para desenvolver o airsoft de forma responsável e sustentável.</p><label>Palavra-passe</label><p>IBAN: PT50 XXXX</p>',
+);
+$indexed_sections = $extract_method->invoke( $indexer, $source_post );
+test_assert( 1 === count( $indexed_sections ) && false === stripos( $indexed_sections[0]['answer'], 'IBAN' ), 'Website section extraction retained form or payment noise.' );
+$payload_method = new ReflectionMethod( $indexer, 'payload' );
+$indexed_payload = $payload_method->invoke( $indexer, $source_post, $indexed_sections[0], 'pt', 0 );
+test_assert( 'Qual é a missão da ADAM?' === $indexed_payload['question'] && 'pt' === $indexed_payload['language'] && 902 === $indexed_payload['related_page'], 'Generated knowledge fields are incomplete or unnatural.' );
+add_filter( 'adam_bot_site_index_translation', static function ( $translated, string $text ): string { unset( $translated ); return 'English ' . $text; }, 10, 2 );
+$translate_method = new ReflectionMethod( $indexer, 'translatePayload' );
+$english_payload = $translate_method->invoke( $indexer, $indexed_payload );
+test_assert( is_array( $english_payload ) && 'en' === $english_payload['language'] && false !== strpos( $english_payload['answer'], 'English ' ), 'English indexed variants were not persisted as independent payloads.' );
+
 $duplicates = new AdamBot\Knowledge\DuplicateDetector( $matcher );
 test_assert( $duplicates->similarity( 'how do i become a member', 'how can i become a member' ) >= 72, 'Duplicate similarity threshold missed a likely duplicate.' );
 
@@ -623,7 +644,7 @@ if ( 'admin' === $test_mode ) {
 	test_assert( empty( array_diff( $required_menus, array_keys( $test_admin['submenus'] ) ) ), 'Phase 8 admin navigation is incomplete.' );
 	$meta_box_ids = array_map( static function ( array $box ): string { return (string) ( $box[0] ?? '' ); }, $test_meta_boxes );
 	test_assert( in_array( 'adam-bot-response-builder', $meta_box_ids, true ) && in_array( 'adam-bot-search-preview', $meta_box_ids, true ) && in_array( 'adam-bot-duplicates', $meta_box_ids, true ), 'Phase 8 entry management boxes are incomplete.' );
-	test_assert( isset( $test_hooks['wp_post_revision_meta_keys'], $test_hooks['wp_restore_post_revision'], $test_hooks['admin_post_adam_bot_import_knowledge'], $test_hooks['admin_post_adam_bot_export_knowledge'], $test_hooks['admin_post_adam_bot_export_backup'], $test_hooks['adam_bot_daily_maintenance'] ), 'Revisions, backup, or maintenance hooks were not registered.' );
+	test_assert( isset( $test_hooks['wp_post_revision_meta_keys'], $test_hooks['wp_restore_post_revision'], $test_hooks['admin_post_adam_bot_import_knowledge'], $test_hooks['admin_post_adam_bot_export_knowledge'], $test_hooks['admin_post_adam_bot_export_backup'], $test_hooks['adam_bot_daily_maintenance'], $test_hooks['adam_bot_initial_site_index'], $test_hooks['adam_bot_site_index_translation_batch'], $test_hooks['admin_post_adam_bot_rebuild_site_knowledge'] ), 'Revisions, indexing, backup, or maintenance hooks were not registered.' );
 
 	ob_start();
 	call_user_func( $test_admin['menus']['adam-bot'] );
