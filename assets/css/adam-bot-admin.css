@@ -48,6 +48,8 @@
 .adam-bot-admin-callout--warning { border-left-color: #dba617; background: #fcf9e8; }
 .adam-bot-admin-callout--success { border-left-color: #00a32a; background: #edfaef; }
 .adam-bot-duplicate-warning { padding: 8px; border-left: 4px solid #dba617; background: #fcf9e8; font-weight: 600; }
+.adam-bot-order-handle { cursor: grab; }
+.wp-list-table tr.is-dragging { opacity: .55; }
 
 @media (max-width: 900px) {
 	.adam-bot-field-grid { grid-template-columns: 1fr; }

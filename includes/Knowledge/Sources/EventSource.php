@@ -75,10 +75,10 @@ final class EventSource implements KnowledgeSourceInterface {
 				if ( '' !== $title && '' !== $content ) {
 					$results[] = new KnowledgeResult(
 						$this->getKey(),
-						__( 'ADAM event information', 'adam-bot' ),
+						__( 'Informação de eventos ADAM', 'adam-bot' ),
 						$title,
 						$content,
-						__( 'Events', 'adam-bot' ),
+						__( 'Eventos', 'adam-bot' ),
 						esc_url_raw( (string) ( $item['url'] ?? $item['registration_url'] ?? '' ) ),
 						0,
 						array(),
@@ -127,7 +127,7 @@ final class EventSource implements KnowledgeSourceInterface {
 
 			$title    = $this->clean( (string) ( $item['title'] ?? '' ) );
 			$date     = $this->clean( (string) ( $item['date'] ?? '' ) );
-			$category = $this->clean( (string) ( $item['category'] ?? __( 'Events', 'adam-bot' ) ) );
+			$category = $this->clean( (string) ( $item['category'] ?? __( 'Eventos', 'adam-bot' ) ) );
 			$content  = $this->eventContent(
 				$this->clean( (string) ( $item['content'] ?? '' ) ),
 				$date,
@@ -139,7 +139,7 @@ final class EventSource implements KnowledgeSourceInterface {
 			if ( '' !== $content ) {
 				$results[] = new KnowledgeResult(
 					$this->getKey(),
-					__( 'ADAM event information', 'adam-bot' ),
+					__( 'Informação de eventos ADAM', 'adam-bot' ),
 					$title,
 					$content,
 					$category,
@@ -193,9 +193,9 @@ final class EventSource implements KnowledgeSourceInterface {
 		$parts = array_filter(
 			array(
 				$content,
-				'' !== $date ? sprintf( __( 'Date: %s', 'adam-bot' ), $date ) : '',
-				'' !== $location ? sprintf( __( 'Location: %s', 'adam-bot' ), $location ) : '',
-				'' !== $price ? sprintf( __( 'Price: %s', 'adam-bot' ), $price ) : '',
+				'' !== $date ? sprintf( __( 'Data: %s', 'adam-bot' ), $date ) : '',
+				'' !== $location ? sprintf( __( 'Local: %s', 'adam-bot' ), $location ) : '',
+				'' !== $price ? sprintf( __( 'Preço: %s', 'adam-bot' ), $price ) : '',
 			)
 		);
 

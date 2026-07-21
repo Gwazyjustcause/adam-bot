@@ -12,6 +12,7 @@ namespace AdamBot\API;
 use AdamBot\Analytics\Analytics;
 use AdamBot\Knowledge\Response\ResponseFormatter;
 use AdamBot\Knowledge\Search\SearchService;
+use AdamBot\Knowledge\KnowledgeSettings;
 use WP_REST_Request;
 use WP_REST_Response;
 use WP_REST_Server;
@@ -37,6 +38,9 @@ final class API {
 	/** @var Analytics */
 	private $analytics;
 
+	/** @var KnowledgeSettings */
+	private $settings;
+
 	/**
 	 * @param SearchService     $search_service Deterministic provider search.
 	 * @param ResponseFormatter $response_formatter Conversational formatter.
@@ -47,12 +51,14 @@ final class API {
 		SearchService $search_service,
 		ResponseFormatter $response_formatter,
 		RateLimiter $rate_limiter,
-		Analytics $analytics
+		Analytics $analytics,
+		KnowledgeSettings $settings
 	) {
 		$this->search_service     = $search_service;
 		$this->response_formatter = $response_formatter;
 		$this->rate_limiter       = $rate_limiter;
 		$this->analytics          = $analytics;
+		$this->settings           = $settings;
 	}
 
 	/** @return void */
@@ -71,19 +77,19 @@ final class API {
 				'permission_callback' => '__return_true',
 				'args'                => array(
 					'message' => array(
-						'description'       => __( 'Chat message.', 'adam-bot' ),
+						'description'       => __( 'Mensagem da conversa.', 'adam-bot' ),
 						'required'          => true,
 						'type'              => 'string',
 						'sanitize_callback' => array( $this, 'sanitizeMessage' ),
 						'validate_callback' => array( $this, 'validateMessage' ),
 					),
 					'context' => array(
-						'description' => __( 'Temporary topic and recently shown knowledge results.', 'adam-bot' ),
+						'description' => __( 'Tópico temporário e resultados de conhecimento mostrados recentemente.', 'adam-bot' ),
 						'required'    => false,
 						'type'        => 'object',
 					),
 					'new_conversation' => array(
-						'description' => __( 'Whether this is the first request in the browser session.', 'adam-bot' ),
+						'description' => __( 'Indica se este é o primeiro pedido da sessão do navegador.', 'adam-bot' ),
 						'required'    => false,
 						'type'        => 'boolean',
 					),
@@ -105,7 +111,7 @@ final class API {
 			return new WP_REST_Response(
 				array(
 					'success' => false,
-					'message' => __( 'Please enter a valid message.', 'adam-bot' ),
+					'message' => __( 'Introduza uma mensagem válida.', 'adam-bot' ),
 				),
 				400
 			);
@@ -115,7 +121,7 @@ final class API {
 			return new WP_REST_Response(
 				array(
 					'success' => false,
-					'message' => __( 'Too many requests. Please wait a few minutes before trying again.', 'adam-bot' ),
+					'message' => __( 'Demasiados pedidos. Aguarde alguns minutos antes de tentar novamente.', 'adam-bot' ),
 				),
 				429
 			);
@@ -147,7 +153,19 @@ final class API {
 			$search->getMatchedKeywords()
 		);
 
-		return new WP_REST_Response( $response->toPublicArray(), 200 );
+		$public = $response->toPublicArray();
+		if ( $this->settings->isDebugMode() && current_user_can( 'manage_options' ) ) {
+			$public['debug'] = array(
+				'provider'         => $search->getMatchedProvider(),
+				'intent'           => $search->getIntent(),
+				'score'            => $search->getConfidence(),
+				'matchedKeywords'  => $search->getMatchedKeywords(),
+				'confidence'       => $search->getConfidence(),
+				'providerTimeMs'   => $search->getProviderDurationMs(),
+				'fallbackProvider' => $search->getFallbackProvider(),
+			);
+		}
+		return new WP_REST_Response( $public, 200 );
 	}
 
 	/** @param mixed $value Submitted value. */

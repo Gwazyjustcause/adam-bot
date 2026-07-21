@@ -19,6 +19,7 @@ final class ImportExport {
 	public function register_hooks(): void {
 		add_action( 'admin_post_adam_bot_export_knowledge', array( $this, 'export' ) );
 		add_action( 'admin_post_adam_bot_import_knowledge', array( $this, 'import' ) );
+		add_action( 'admin_post_adam_bot_export_backup', array( $this, 'exportBackup' ) );
 	}
 
 	public function export(): void {
@@ -36,7 +37,7 @@ final class ImportExport {
 			if ( false !== $output ) {
 				fputcsv( $output, array_keys( $this->emptyRow() ) );
 				foreach ( $rows as $row ) {
-					fputcsv( $output, array_values( $row ) );
+					fputcsv( $output, array_map( array( $this, 'safeCsvCell' ), array_values( $row ) ) );
 				}
 				fclose( $output );
 			}
@@ -98,6 +99,48 @@ final class ImportExport {
 		}
 		do_action( 'adam_bot_knowledge_invalidate_cache' );
 		$this->redirect( 'imported', $count );
+	}
+
+	/** Exports knowledge, FAQ, analytics, anonymous logs, and settings. */
+	public function exportBackup(): void {
+		$this->authorize();
+		$format = sanitize_key( wp_unslash( (string) ( $_GET['format'] ?? 'json' ) ) );
+		$format = in_array( $format, array( 'json', 'csv' ), true ) ? $format : 'json';
+		$analytics = get_option( 'adam_bot_analytics', array() );
+		$payload = array(
+			'schema'          => 2,
+			'exported_at'     => gmdate( 'c' ),
+			'knowledge'       => $this->rows(),
+			'analytics'       => is_array( $analytics ) ? array_diff_key( $analytics, array( 'provider_logs' => true ) ) : array(),
+			'search_logs'     => is_array( $analytics ) && isset( $analytics['provider_logs'] ) && is_array( $analytics['provider_logs'] ) ? $analytics['provider_logs'] : array(),
+			'settings'        => array(
+				'knowledge'  => get_option( KnowledgeSettings::OPTION_KEY, array() ),
+				'experience' => get_option( 'adam_bot_experience_settings', array() ),
+			),
+			'provider_health' => get_option( 'adam_bot_provider_health', array() ),
+			'maintenance'     => get_option( 'adam_bot_maintenance_status', array() ),
+		);
+
+		nocache_headers();
+		header( 'Content-Disposition: attachment; filename="adam-bot-backup-' . gmdate( 'Y-m-d-His' ) . '.' . $format . '"' );
+		if ( 'csv' === $format ) {
+			header( 'Content-Type: text/csv; charset=utf-8' );
+			$output = fopen( 'php://output', 'wb' );
+			if ( false !== $output ) {
+				fputcsv( $output, array( 'dataset', 'key', 'value' ) );
+				foreach ( $payload as $dataset => $value ) {
+					if ( in_array( $dataset, array( 'schema', 'exported_at' ), true ) ) { continue; }
+					foreach ( is_array( $value ) ? $value : array( $value ) as $key => $item ) {
+						fputcsv( $output, array( $dataset, (string) $key, (string) wp_json_encode( $item, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ) ) );
+					}
+				}
+				fclose( $output );
+			}
+		} else {
+			header( 'Content-Type: application/json; charset=utf-8' );
+			echo wp_json_encode( $payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Downloaded JSON.
+		}
+		exit;
 	}
 
 	/** @return array<int,array<string,string>> */
@@ -260,9 +303,14 @@ final class ImportExport {
 
 	private function authorize(): void {
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_die( esc_html__( 'You do not have permission to transfer knowledge.', 'adam-bot' ) );
+			wp_die( esc_html__( 'Não tem permissão para transferir conhecimento.', 'adam-bot' ) );
 		}
 		check_admin_referer( self::NONCE_ACTION );
+	}
+
+	/** Prevents spreadsheet applications interpreting exported content as a formula. */
+	private function safeCsvCell( string $value ): string {
+		return 1 === preg_match( '/^[\s]*[=+\-@]/', $value ) ? "'" . $value : $value;
 	}
 
 	private function redirect( string $status, int $count = 0 ): void {

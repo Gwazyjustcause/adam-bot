@@ -30,11 +30,11 @@ final class KnowledgeSettings {
 		$sources = apply_filters(
 			'adam_bot_knowledge_provider_registry',
 			array(
-				'faq'        => __( 'Frequently Asked Questions', 'adam-bot' ),
-				'page'       => __( 'Selected WordPress Pages', 'adam-bot' ),
-				'membership' => __( 'Membership Information', 'adam-bot' ),
-				'event'      => __( 'Event Information', 'adam-bot' ),
-				'manual'     => __( 'Manual Knowledge Entries', 'adam-bot' ),
+				'faq'        => __( 'Perguntas frequentes', 'adam-bot' ),
+				'page'       => __( 'Páginas WordPress selecionadas', 'adam-bot' ),
+				'membership' => __( 'Informação de sócios', 'adam-bot' ),
+				'event'      => __( 'Informação de eventos', 'adam-bot' ),
+				'manual'     => __( 'Entradas manuais de conhecimento', 'adam-bot' ),
 			)
 		);
 		$sources = is_array( $sources ) ? $sources : array();
@@ -72,6 +72,7 @@ final class KnowledgeSettings {
 		$values['page_ids'] = isset( $values['page_ids'] ) && is_array( $values['page_ids'] )
 			? array_slice( array_values( array_unique( array_filter( array_map( 'absint', $values['page_ids'] ) ) ) ), 0, 50 )
 			: array();
+		$values['debug_mode'] = ! empty( $values['debug_mode'] ) ? 1 : 0;
 
 		return $values;
 	}
@@ -86,6 +87,7 @@ final class KnowledgeSettings {
 			'enabled_sources' => array_keys( $this->sources() ),
 			'known_sources'   => array_keys( $this->sources() ),
 			'page_ids'        => array(),
+			'debug_mode'      => 0,
 		);
 	}
 
@@ -111,6 +113,7 @@ final class KnowledgeSettings {
 			'enabled_sources' => $enabled,
 			'known_sources'   => $valid,
 			'page_ids'        => $pages,
+			'debug_mode'      => ! empty( $input['debug_mode'] ) ? 1 : 0,
 		);
 	}
 
@@ -133,6 +136,10 @@ final class KnowledgeSettings {
 		$settings = $this->all();
 
 		return $settings['page_ids'];
+	}
+
+	public function isDebugMode(): bool {
+		return ! empty( $this->all()['debug_mode'] );
 	}
 
 	/** @return int */

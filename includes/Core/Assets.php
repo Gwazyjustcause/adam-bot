@@ -84,6 +84,14 @@ final class Assets {
 					'results'           => __( 'Resultados', 'adam-bot' ),
 					'view'              => __( 'Ver', 'adam-bot' ),
 					'restored'          => __( 'Conversa desta sessão restaurada.', 'adam-bot' ),
+					'debugSummary'      => __( 'Diagnóstico da pesquisa', 'adam-bot' ),
+					'debugProvider'     => __( 'Fornecedor', 'adam-bot' ),
+					'debugIntent'       => __( 'Intenção', 'adam-bot' ),
+					'debugScore'        => __( 'Pontuação', 'adam-bot' ),
+					'debugKeywords'     => __( 'Palavras correspondentes', 'adam-bot' ),
+					'debugConfidence'   => __( 'Confiança', 'adam-bot' ),
+					'debugTime'         => __( 'Tempo do fornecedor', 'adam-bot' ),
+					'debugFallback'     => __( 'Fornecedor alternativo', 'adam-bot' ),
 				),
 			)
 		);

@@ -2,6 +2,7 @@
 	'use strict';
 
 	var settings = window.adamBotKnowledgeAdmin || {};
+	var strings = settings.strings || {};
 	var blockList = document.getElementById('adam-bot-response-blocks');
 	var template = document.getElementById('adam-bot-response-block-template');
 	var draggedBlock = null;
@@ -117,19 +118,19 @@
 			var question = document.getElementById('adam-bot-preview-question');
 			var output = document.getElementById('adam-bot-preview-result');
 			if (!question || !output) return;
-			output.textContent = (settings.strings && settings.strings.testing) || 'Testing…';
+			output.textContent = strings.testing || 'A testar…';
 			post('adam_bot_search_preview', { question: question.value }).then(function (payload) {
 				output.textContent = '';
 				if (!payload.success) throw new Error('preview');
 				var data = payload.data || {};
-				addLine(output, 'Matched entry', data.matched_title || '—');
-				addLine(output, 'Matched keywords', (data.matched_keywords || []).join(', ') || '—');
-				addLine(output, 'Confidence', String(data.confidence || 0) + '%');
+				addLine(output, strings.selected || 'Entrada selecionada', data.matched_title || strings.empty || '—');
+				addLine(output, strings.matched || 'Palavras-chave correspondentes', (data.matched_keywords || []).join(', ') || strings.empty || '—');
+				addLine(output, strings.confidence || 'Confiança', String(data.confidence || 0) + '%');
 				var heading = document.createElement('strong');
-				heading.textContent = 'Response preview';
+				heading.textContent = strings.preview || 'Pré-visualização da resposta';
 				var response = document.createElement('div');
 				response.className = 'adam-bot-preview-response';
-				String(data.response || '—').split(/\r?\n/).filter(Boolean).forEach(function (line) {
+				String(data.response || strings.empty || '—').split(/\r?\n/).filter(Boolean).forEach(function (line) {
 					var callout = line.match(/^\[!(warning|information|success)\]\s+(.+)$/i);
 					var element = document.createElement('p');
 					if (callout) {
@@ -143,7 +144,7 @@
 				output.appendChild(heading);
 				output.appendChild(response);
 			}).catch(function () {
-				output.textContent = (settings.strings && settings.strings.error) || 'The preview could not be loaded.';
+				output.textContent = strings.error || 'Não foi possível carregar a pré-visualização.';
 			});
 		});
 	}
@@ -160,14 +161,65 @@
 					var matches = (payload.data && payload.data.matches) || [];
 					duplicateOutput.textContent = '';
 					var title = document.createElement('p');
-					title.textContent = matches.length ? 'Possible duplicate detected' : 'No likely duplicates detected.';
+					title.textContent = matches.length ? (strings.duplicate || 'Possível duplicado detetado') : (strings.noDuplicate || 'Não foram detetados duplicados prováveis.');
 					if (matches.length) title.className = 'adam-bot-duplicate-warning';
 					duplicateOutput.appendChild(title);
 					matches.forEach(function (match) {
-						addLine(duplicateOutput, match.question || '', String(match.similarity || 0) + '% similar');
+						addLine(duplicateOutput, match.question || '', String(match.similarity || 0) + '% ' + (strings.similar || 'semelhante'));
 					});
 				});
 			}, 450);
 		});
+	}
+
+	var entryTable = document.querySelector('.wp-list-table.posts tbody');
+	if (entryTable && document.querySelector('.adam-bot-order-handle')) {
+		var draggedRow = null;
+		function saveEntryOrder() {
+			var ids = Array.prototype.map.call(entryTable.querySelectorAll('tr[id^="post-"]'), function (row) { return row.id.replace('post-', ''); });
+			post('adam_bot_reorder_entries', { ids: ids.join(',') });
+			entryTable.querySelectorAll('.adam-bot-order-handle').forEach(function (handle, index) {
+				var text = handle.lastChild;
+				if (text && text.nodeType === 3) text.nodeValue = ' ' + index;
+			});
+		}
+		entryTable.querySelectorAll('tr[id^="post-"]').forEach(function (row) {
+			row.draggable = true;
+			row.addEventListener('dragstart', function () { draggedRow = row; row.classList.add('is-dragging'); });
+			row.addEventListener('dragend', function () { row.classList.remove('is-dragging'); draggedRow = null; saveEntryOrder(); });
+			row.addEventListener('dragover', function (event) {
+				event.preventDefault();
+				if (!draggedRow || draggedRow === row) return;
+				var box = row.getBoundingClientRect();
+				entryTable.insertBefore(draggedRow, event.clientY < box.top + box.height / 2 ? row : row.nextElementSibling);
+			});
+			var handle = row.querySelector('.adam-bot-order-handle');
+			if (handle) handle.addEventListener('keydown', function (event) {
+				if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+				event.preventDefault();
+				var sibling = event.key === 'ArrowUp' ? row.previousElementSibling : row.nextElementSibling;
+				if (!sibling) return;
+				entryTable.insertBefore(row, event.key === 'ArrowUp' ? sibling : sibling.nextElementSibling);
+				saveEntryOrder();
+				handle.focus();
+			});
+		});
+	}
+
+	if (window.inlineEditPost && typeof window.inlineEditPost.edit === 'function') {
+		var originalQuickEdit = window.inlineEditPost.edit;
+		window.inlineEditPost.edit = function (id) {
+			originalQuickEdit.apply(this, arguments);
+			var postId = typeof id === 'object' ? parseInt(this.getId(id), 10) : parseInt(id, 10);
+			var data = document.querySelector('#post-' + postId + ' .adam-bot-quick-data');
+			var editor = document.getElementById('edit-' + postId);
+			if (!data || !editor) return;
+			var priority = editor.querySelector('[name="adam_bot_quick_priority"]');
+			var weight = editor.querySelector('[name="adam_bot_quick_weight"]');
+			var visibility = editor.querySelector('[name="adam_bot_quick_visibility"]');
+			if (priority) priority.value = data.dataset.priority || '50';
+			if (weight) weight.value = data.dataset.weight || '100';
+			if (visibility) visibility.value = data.dataset.visibility || 'published';
+		};
 	}
 }());

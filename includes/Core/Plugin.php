@@ -10,7 +10,10 @@ declare(strict_types=1);
 namespace AdamBot\Core;
 
 use AdamBot\Admin\SettingsPage;
+use AdamBot\Admin\ProductionAdmin;
 use AdamBot\Analytics\Analytics;
+use AdamBot\Analytics\ProviderMonitor;
+use AdamBot\Analytics\SearchInsights;
 use AdamBot\API\API;
 use AdamBot\API\RateLimiter;
 use AdamBot\Frontend\Frontend;
@@ -67,6 +70,7 @@ final class Plugin {
 		$knowledge_settings  = new KnowledgeSettings();
 		$experience_settings = new ExperienceSettings();
 		$analytics            = new Analytics();
+		$provider_monitor     = new ProviderMonitor();
 		$logger               = new Logger();
 
 		$knowledge_settings->ensureDefaults();
@@ -75,7 +79,9 @@ final class Plugin {
 
 		$matcher        = new KeywordMatcher();
 		$result_ranker  = new ResultRanker( $matcher );
-		$provider_resolver = new ProviderResolver( $this->dynamic_providers, new IntentDetector( $matcher ), $knowledge_settings, $matcher, $logger );
+		$intent_detector  = new IntentDetector( $matcher );
+		$duplicate_detector = new DuplicateDetector( $matcher );
+		$provider_resolver = new ProviderResolver( $this->dynamic_providers, $intent_detector, $knowledge_settings, $matcher, $logger );
 		$search_service = new SearchService(
 			$knowledge_settings,
 			$result_ranker,
@@ -90,12 +96,16 @@ final class Plugin {
 			$provider_resolver
 		);
 		$response_formatter = new ResponseFormatter( $matcher );
-		$knowledge_admin    = new KnowledgeAdmin( $knowledge_settings, $search_service, $response_formatter, new DuplicateDetector( $matcher ) );
+		$knowledge_admin    = new KnowledgeAdmin( $knowledge_settings, $search_service, $response_formatter, $duplicate_detector );
+		$search_insights    = new SearchInsights( $duplicate_detector, $intent_detector );
 
 		$this->components = array(
 			new Frontend( $experience_settings ),
-			new API( $search_service, $response_formatter, new RateLimiter(), $analytics ),
-			new SettingsPage( $experience_settings, $analytics, $knowledge_admin ),
+			new API( $search_service, $response_formatter, new RateLimiter(), $analytics, $knowledge_settings ),
+			new SettingsPage( $experience_settings, $analytics, $knowledge_admin, $search_insights ),
+			new ProductionAdmin( $analytics, $this->dynamic_providers, $provider_monitor ),
+			$provider_monitor,
+			new Maintenance( $knowledge_settings, $search_service, $analytics ),
 			$knowledge_admin,
 			new RevisionManager(),
 			new ImportExport(),

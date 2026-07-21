@@ -62,10 +62,10 @@ final class PageSource implements KnowledgeSourceInterface {
 			if ( '' !== $content ) {
 				$results[] = new KnowledgeResult(
 					$this->getKey(),
-					sprintf( __( 'ADAM page: %s', 'adam-bot' ), $title ),
+					sprintf( __( 'Página ADAM: %s', 'adam-bot' ), $title ),
 					$title,
 					$content,
-					__( 'Website page', 'adam-bot' ),
+					__( 'Página do website', 'adam-bot' ),
 					(string) get_permalink( $post ),
 					0,
 					array(),

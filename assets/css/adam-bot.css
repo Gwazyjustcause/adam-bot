@@ -774,7 +774,7 @@
 }
 
 .adam-bot__page-link {
-	min-height: 36px;
+	min-height: 44px;
 	padding: 8px 10px;
 	flex: 0 0 auto;
 	border-radius: 10px;
@@ -784,6 +784,7 @@
 	font-weight: 750;
 	line-height: 20px;
 	text-decoration: none;
+	touch-action: manipulation;
 }
 
 .adam-bot__page-link--secondary {
@@ -796,6 +797,31 @@
 	flex-wrap: wrap;
 	gap: 7px;
 }
+
+.adam-bot__debug {
+	margin-top: 10px;
+	padding: 10px 12px;
+	border: 1px dashed var(--adam-border);
+	border-radius: 10px;
+	color: var(--adam-ink-muted);
+	background: var(--adam-surface-soft);
+	font-size: 12px;
+}
+
+.adam-bot__debug summary {
+	cursor: pointer;
+	font-weight: 700;
+}
+
+.adam-bot__debug dl {
+	display: grid;
+	grid-template-columns: minmax(100px, auto) 1fr;
+	gap: 4px 10px;
+	margin: 9px 0 0;
+}
+
+.adam-bot__debug dt { font-weight: 700; }
+.adam-bot__debug dd { margin: 0; overflow-wrap: anywhere; }
 
 .adam-bot__chip {
 	min-height: 44px;
@@ -1035,6 +1061,12 @@
 }
 
 @media (max-width: 600px) {
+	html.adam-bot-dialog-open,
+	html.adam-bot-dialog-open body {
+		overflow: hidden;
+		overscroll-behavior: none;
+	}
+
 	.adam-bot__backdrop {
 		pointer-events: none;
 	}
@@ -1078,6 +1110,8 @@
 	.adam-bot__conversation {
 		width: 100%;
 		padding: 18px max(14px, env(safe-area-inset-right)) 22px max(14px, env(safe-area-inset-left));
+		overscroll-behavior: contain;
+		-webkit-overflow-scrolling: touch;
 	}
 
 	.adam-bot__composer {
@@ -1120,6 +1154,7 @@
 	.adam-bot__bubble,
 	.adam-bot__page-card,
 	.adam-bot__knowledge-card,
+	.adam-bot__debug,
 	.adam-bot__callout,
 	.adam-bot__chip,
 	.adam-bot__input-wrap {

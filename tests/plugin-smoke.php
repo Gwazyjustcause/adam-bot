@@ -370,7 +370,7 @@ test_assert( 200 === $prices->get_status() && true === ( $data['success'] ?? fal
 test_assert( false !== strpos( $data['message'] ?? '', '€22' ), 'Highest-ranked membership answer was not formatted.' );
 test_assert( count( $data['suggestions'] ?? array() ) >= 1, 'Contextual suggestions were not returned.' );
 test_assert( 'membership' === ( $data['context']['topic'] ?? '' ), 'Membership topic was not retained.' );
-test_assert( ! isset( $data['confidence'], $data['classification'] ), 'Internal confidence leaked to the frontend.' );
+test_assert( ! isset( $data['confidence'], $data['classification'], $data['debug'] ), 'Internal diagnostics leaked to the frontend.' );
 
 $calls_after_first = $test_posts_calls;
 $cached            = test_chat( array( 'message' => 'What are the membership prices?' ) );
@@ -412,7 +412,7 @@ test_assert( false !== strpos( $contextual['message'] ?? '', '€22' ), 'Lightwe
 test_assert( 'membership' === ( $contextual['context']['topic'] ?? '' ), 'Follow-up response lost its topic.' );
 
 $unknown = test_chat( array( 'message' => 'Where is the quantum banana tractor?' ) )->get_data();
-test_assert( false !== strpos( $unknown['message'] ?? '', "couldn't find an answer" ), 'No-confidence response was not deterministic.' );
+test_assert( false !== strpos( $unknown['message'] ?? '', 'Não encontrei uma resposta' ), 'No-confidence response was not deterministic.' );
 test_assert( ! isset( $unknown['needsGeneralKnowledge'] ), 'No-confidence response still offers general AI.' );
 
 $oversized = test_chat( array( 'message' => str_repeat( 'x', 4001 ) ) );
@@ -575,26 +575,30 @@ test_assert( false === strpos( $source_text, 'mappedSuggestions' ) && false === 
 test_assert( false === strpos( $source_text, 'tribe_events' ), 'Core still contains a plugin-specific event post type.' );
 
 if ( 'admin' === $test_mode ) {
+	$test_options['adam_bot_knowledge_settings']['debug_mode'] = 1;
+	$debug_response = test_chat( array( 'message' => 'Diagnóstico: como renovar a quota?' ) )->get_data();
+	test_assert( isset( $debug_response['debug']['provider'], $debug_response['debug']['confidence'] ), 'Administrator search diagnostics are unavailable.' );
+	$test_options['adam_bot_knowledge_settings']['debug_mode'] = 0;
 	test_assert( isset( $test_admin['settings']['adam_bot_experience_settings'], $test_admin['settings']['adam_bot_knowledge_settings'] ), 'Admin settings were not registered.' );
 	test_assert( ! isset( $test_admin['settings']['adam_bot_ai_settings'] ), 'AI settings are still registered.' );
 	test_assert( isset( $test_post_types['adam_bot_faq'], $test_post_types['adam_bot_knowledge'] ), 'Knowledge entry types were not registered.' );
 	test_assert( in_array( 'revisions', $test_post_types['adam_bot_knowledge']['supports'], true ), 'Knowledge version history is not enabled.' );
 	test_assert( isset( $test_admin['taxonomies']['adam_bot_category'] ), 'Unlimited Knowledge categories were not registered.' );
-	$required_menus = array( 'adam-bot', 'adam-bot-conversations', 'edit.php?post_type=adam_bot_knowledge', 'edit.php?post_type=adam_bot_faq', 'adam-bot-search-analytics', 'adam-bot-settings' );
+	$required_menus = array( 'adam-bot', 'adam-bot-conversations', 'edit.php?post_type=adam_bot_knowledge', 'edit.php?post_type=adam_bot_faq', 'adam-bot-search-analytics', 'adam-bot-unanswered', 'adam-bot-providers', 'adam-bot-settings' );
 	test_assert( empty( array_diff( $required_menus, array_keys( $test_admin['submenus'] ) ) ), 'Phase 8 admin navigation is incomplete.' );
 	$meta_box_ids = array_map( static function ( array $box ): string { return (string) ( $box[0] ?? '' ); }, $test_meta_boxes );
 	test_assert( in_array( 'adam-bot-response-builder', $meta_box_ids, true ) && in_array( 'adam-bot-search-preview', $meta_box_ids, true ) && in_array( 'adam-bot-duplicates', $meta_box_ids, true ), 'Phase 8 entry management boxes are incomplete.' );
-	test_assert( isset( $test_hooks['wp_post_revision_meta_keys'], $test_hooks['wp_restore_post_revision'], $test_hooks['admin_post_adam_bot_import_knowledge'], $test_hooks['admin_post_adam_bot_export_knowledge'] ), 'Revisions or import/export hooks were not registered.' );
+	test_assert( isset( $test_hooks['wp_post_revision_meta_keys'], $test_hooks['wp_restore_post_revision'], $test_hooks['admin_post_adam_bot_import_knowledge'], $test_hooks['admin_post_adam_bot_export_knowledge'], $test_hooks['admin_post_adam_bot_export_backup'], $test_hooks['adam_bot_daily_maintenance'] ), 'Revisions, backup, or maintenance hooks were not registered.' );
 
 	ob_start();
 	call_user_func( $test_admin['menus']['adam-bot'] );
 	$settings_page = ob_get_clean();
-	test_assert( false !== strpos( $settings_page, 'Quick Actions' ) && false !== strpos( $settings_page, 'High confidence' ), 'Phase 8 dashboard is incomplete.' );
+	test_assert( false !== strpos( $settings_page, 'Ações rápidas' ) && false !== strpos( $settings_page, 'Confiança média' ) && false !== strpos( $settings_page, 'Perguntas sem resposta' ), 'Production dashboard is incomplete.' );
 	test_assert( false === stripos( $settings_page, 'OpenAI' ) && false === stripos( $settings_page, 'API Key' ), 'AI controls remain visible.' );
 	ob_start();
 	call_user_func( $test_admin['submenus']['adam-bot-search-analytics']['callback'] );
 	$analytics_page = ob_get_clean();
-	test_assert( false !== strpos( $analytics_page, 'Dynamic provider activity' ) && false !== strpos( $analytics_page, 'Provider selected' ), 'Provider routing logs are missing from Search Analytics.' );
+	test_assert( false !== strpos( $analytics_page, 'Atividade dos fornecedores' ) && false !== strpos( $analytics_page, 'Fornecedor selecionado' ) && false !== strpos( $analytics_page, 'Perguntas por dia' ), 'Provider routing logs or production charts are missing from Search Analytics.' );
 
 	$sanitize = $test_admin['settings']['adam_bot_experience_settings']['args']['sanitize_callback'];
 	$clean    = call_user_func( $sanitize, array( 'quick_actions' => array( array( 'icon'=>'📅', 'label'=>' Events ', 'prompt'=>' Show events ' ) ) ) );
@@ -615,4 +619,4 @@ if ( 'public' === $test_mode ) {
 	test_assert( ! isset( $test_hooks['wp_enqueue_scripts'], $test_hooks['wp_footer'] ), 'Frontend hooks were registered on a protected screen.' );
 }
 
-echo sprintf( "PASS: %s Phase 9 boundary.\n", $test_mode );
+echo sprintf( "PASS: %s Phase 10 production boundary.\n", $test_mode );

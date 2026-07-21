@@ -3,7 +3,7 @@ Contributors: adam
 Tags: chat, assistant, knowledge
 Requires at least: 6.3
 Requires PHP: 7.4
-Stable tag: 1.7.0
+Stable tag: 1.8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -31,6 +31,14 @@ fields, partners, news, documents, and public membership information. Providers
 are registered lazily and return reusable rich cards. Static knowledge remains a
 ranked fallback, so administrators keep full control while live platform data is
 preferred whenever it is relevant.
+
+Phase 10 completes the ADAM Assistant 1.0 production milestone with a health
+dashboard, analytical charts and filters, an unanswered-question workflow,
+search-improvement suggestions, provider inspection, full backups, scheduled
+maintenance, administrator notices, object caching, saved searches, bulk and
+keyboard ordering, diagnostic search output for administrators, and a complete
+accessibility and mobile pass. The public and administrative interface is in
+European Portuguese.
 
 == Installation ==
 
@@ -105,6 +113,18 @@ session storage for recovery and are cleared when the browsing session ends.
 Server analytics contain aggregate counters and scrubbed common-question samples.
 
 == Changelog ==
+
+= 1.8.0 =
+* Completed the ADAM Assistant 1.0 production milestone.
+* Added the assistant health dashboard, filtered analytics charts, search trends, popular categories, keyword and provider usage.
+* Added an unanswered-question queue with one-click draft creation and repeated-question consolidation suggestions.
+* Added the Provider Inspector with availability, priority, indexed-item, timing, update, and error diagnostics.
+* Added administrator-only search debug output, provider health monitoring, and operational dashboard notices.
+* Added persistent object-cache support, provider/search cache layers, lazy loading, namespace invalidation, and daily background maintenance.
+* Added complete JSON/CSV backups for knowledge, FAQ, analytics, anonymous search logs, settings, and provider health.
+* Added saved admin searches, entry duplication, bulk state actions, and mouse/keyboard ordering.
+* Improved mobile safe areas, scroll and keyboard behaviour, 44-pixel touch targets, high contrast, reduced motion, focus handling, and ARIA labelling.
+* Standardized all user-facing interface text in European Portuguese and added extension documentation in `docs/DEVELOPER.md`.
 
 = 1.7.0 =
 * Added DynamicProviderInterface, DynamicProviderRegistry, ProviderResolver, and the stable `adam_bot()->providers()` registration API.

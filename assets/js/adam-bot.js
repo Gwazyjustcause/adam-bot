@@ -88,8 +88,10 @@
 				if ( callout ) {
 					const element = document.createElement( 'div' );
 					const label = document.createElement( 'strong' );
-					element.className = `adam-bot__callout adam-bot__callout--${ callout[ 1 ].toLowerCase() }`;
-					label.textContent = `${ callout[ 1 ].charAt( 0 ).toUpperCase() + callout[ 1 ].slice( 1 ).toLowerCase() }: `;
+					const labels = { warning: 'Aviso', information: 'Informação', success: 'Sucesso' };
+					const type = callout[ 1 ].toLowerCase();
+					element.className = `adam-bot__callout adam-bot__callout--${ type }`;
+					label.textContent = `${ labels[ type ] || 'Informação' }: `;
 					element.appendChild( label );
 					this.appendInline( element, callout[ 2 ] );
 					fragment.appendChild( element );
@@ -345,6 +347,7 @@
 			this.panel.setAttribute( 'aria-hidden', 'false' );
 			this.launcher.setAttribute( 'aria-expanded', 'true' );
 			this.root.classList.add( 'is-open' );
+			document.documentElement.classList.add( 'adam-bot-dialog-open' );
 			this.updateViewportHeight();
 
 			window.setTimeout( () => {
@@ -362,6 +365,7 @@
 			this.isOpen = false;
 			this.persistState();
 			this.root.classList.remove( 'is-open' );
+			document.documentElement.classList.remove( 'adam-bot-dialog-open' );
 			this.panel.setAttribute( 'aria-hidden', 'true' );
 			this.panel.setAttribute( 'inert', '' );
 			this.launcher.setAttribute( 'aria-expanded', 'false' );
@@ -466,7 +470,9 @@
 			try {
 				const reply = cached || await this.api.send( message, { context, newConversation } );
 				if ( ! cached ) {
-					this.cacheResponse( cacheKey, reply );
+					const cacheableReply = reply && typeof reply === 'object' ? { ...reply } : reply;
+					if ( cacheableReply && typeof cacheableReply === 'object' ) delete cacheableReply.debug;
+					this.cacheResponse( cacheKey, cacheableReply );
 				}
 				this.finishResponse( reply );
 			} catch ( error ) {
@@ -488,6 +494,7 @@
 				links: response.links,
 				cards: response.cards,
 				suggestions: response.suggestions,
+				debug: response.debug,
 			} );
 			this.setBusy( false );
 
@@ -525,6 +532,7 @@
 			this.appendCards( content, options.cards );
 			this.appendLinks( content, options.links );
 			this.appendSuggestions( content, options.suggestions );
+			this.appendDebug( content, options.debug );
 			item.appendChild( content );
 			this.messages.appendChild( item );
 
@@ -541,6 +549,34 @@
 			}
 
 			this.scrollToLatest();
+		}
+
+		appendDebug( content, debug ) {
+			if ( ! debug || typeof debug !== 'object' ) return;
+			const region = document.createElement( 'details' );
+			const summary = document.createElement( 'summary' );
+			const list = document.createElement( 'dl' );
+			const rows = [
+				[ this.strings.debugProvider || 'Fornecedor', debug.provider ],
+				[ this.strings.debugIntent || 'Intenção', debug.intent ],
+				[ this.strings.debugScore || 'Pontuação', debug.score ],
+				[ this.strings.debugKeywords || 'Palavras correspondentes', Array.isArray( debug.matchedKeywords ) ? debug.matchedKeywords.join( ', ' ) : '' ],
+				[ this.strings.debugConfidence || 'Confiança', debug.confidence ],
+				[ this.strings.debugTime || 'Tempo do fornecedor', debug.providerTimeMs ],
+				[ this.strings.debugFallback || 'Fornecedor alternativo', debug.fallbackProvider ],
+			];
+			region.className = 'adam-bot__debug';
+			summary.textContent = this.strings.debugSummary || 'Diagnóstico da pesquisa';
+			rows.forEach( ( [ label, value ] ) => {
+				if ( value === '' || value === null || typeof value === 'undefined' ) return;
+				const term = document.createElement( 'dt' );
+				const description = document.createElement( 'dd' );
+				term.textContent = label;
+				description.textContent = String( value );
+				list.append( term, description );
+			} );
+			region.append( summary, list );
+			content.appendChild( region );
 		}
 
 		appendLinks( content, links ) {
@@ -593,6 +629,8 @@
 			region.className = 'adam-bot__knowledge-cards';
 			title.className = 'adam-bot__meta-title';
 			title.textContent = clean[ 0 ].groupLabel || this.strings.results || 'Resultados';
+			region.setAttribute( 'role', 'group' );
+			region.setAttribute( 'aria-label', title.textContent );
 			region.appendChild( title );
 
 			clean.forEach( ( cardData ) => {
@@ -605,6 +643,7 @@
 					image.src = cardData.image;
 					image.alt = '';
 					image.loading = 'lazy';
+					image.decoding = 'async';
 					card.appendChild( image );
 				}
 				heading.textContent = cardData.title;

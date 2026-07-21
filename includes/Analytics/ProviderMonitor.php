@@ -17,7 +17,6 @@ final class ProviderMonitor {
 
 	/** @return void */
 	public function register_hooks(): void {
-		add_action( 'adam_bot_dynamic_provider_observed', array( $this, 'recordSearch' ), 10, 3 );
 		add_action( 'adam_bot_dynamic_provider_error', array( $this, 'recordError' ), 10, 2 );
 	}
 

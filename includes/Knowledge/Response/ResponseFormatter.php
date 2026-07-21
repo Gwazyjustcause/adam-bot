@@ -28,7 +28,6 @@ final class ResponseFormatter {
 	public function format( SearchResultSet $search, string $question ): KnowledgeResponse {
 		$level      = $search->getConfidenceLevel();
 		$top        = $search->getTopResult();
-		$is_english = $this->isLikelyEnglish( $question );
 		$links      = array();
 		$cards      = array();
 
@@ -43,18 +42,14 @@ final class ResponseFormatter {
 				$links   = $this->buildComponentLinks( $top );
 			} else {
 				$answer  = $this->formatAnswer( $top );
-				$message = 'medium' === $level
-					? ( $is_english ? "I found an answer that may help.\n\n" : "Encontrei uma resposta que poderá ajudá-lo.\n\n" ) . $answer
-					: $answer;
+				$message = 'medium' === $level ? "Encontrei uma resposta que poderá ajudá-lo.\n\n" . $answer : $answer;
 				$links = array_slice( array_merge( $this->buildComponentLinks( $top ), $this->buildBlockLinks( $top ), $this->buildLinks( array( $top ) ) ), 0, 4 );
 			}
 		} elseif ( 'low' === $level ) {
-			$message = $is_english ? 'I found some related pages that may help.' : 'Encontrei algumas páginas relacionadas que poderão ajudar.';
+			$message = 'Encontrei algumas páginas relacionadas que poderão ajudar.';
 			$links   = $this->buildLinks( $search->getFallbackResults() );
 		} else {
-			$message = $is_english
-				? "I couldn't find an answer to that question.\n\nTry rephrasing it or consult the pages below."
-				: "Não encontrei uma resposta para essa questão.\n\nExperimente reformular a pergunta ou consulte as páginas abaixo.";
+			$message = "Não encontrei uma resposta para essa questão.\n\nExperimente reformular a pergunta ou consulte as páginas abaixo.";
 			$links = $this->buildLinks( $search->getFallbackResults() );
 		}
 
@@ -277,13 +272,13 @@ final class ResponseFormatter {
 				if ( 'card' !== sanitize_key( (string) ( $component['component'] ?? '' ) ) ) { continue; }
 				$cards[] = array(
 					'type'        => sanitize_key( (string) ( $component['type'] ?? 'result' ) ),
-					'groupLabel'  => $this->truncate( sanitize_text_field( (string) ( $component['group_label'] ?? __( 'Results', 'adam-bot' ) ) ), 80 ),
+					'groupLabel'  => $this->truncate( sanitize_text_field( (string) ( $component['group_label'] ?? __( 'Resultados', 'adam-bot' ) ) ), 80 ),
 					'image'       => esc_url_raw( (string) ( $component['image'] ?? '' ) ),
 					'title'       => $this->truncate( sanitize_text_field( (string) ( $component['title'] ?? $result->getTitle() ) ), 140 ),
 					'description' => $this->truncate( sanitize_text_field( (string) ( $component['description'] ?? '' ) ), 320 ),
 					'meta'        => isset( $component['meta'] ) && is_array( $component['meta'] ) ? array_slice( array_map( function ( $value ): string { return $this->truncate( sanitize_text_field( (string) $value ), 160 ); }, $component['meta'] ), 0, 8 ) : array(),
 					'url'         => esc_url_raw( (string) ( $component['url'] ?? '' ) ),
-					'actionLabel' => $this->truncate( sanitize_text_field( (string) ( $component['action_label'] ?? __( 'View', 'adam-bot' ) ) ), 60 ),
+					'actionLabel' => $this->truncate( sanitize_text_field( (string) ( $component['action_label'] ?? __( 'Ver', 'adam-bot' ) ) ), 60 ),
 					'actions'     => $this->sanitizeCardActions( $component['actions'] ?? array() ),
 					'download'    => ! empty( $component['download'] ),
 				);
@@ -330,7 +325,7 @@ final class ResponseFormatter {
 				'description' => $description,
 				'meta'        => array_slice( $meta, 0, 3 ),
 				'url'         => $result->getUrl(),
-				'actionLabel' => '' !== $result->getButtonLabel() ? $result->getButtonLabel() : __( 'View', 'adam-bot' ),
+				'actionLabel' => '' !== $result->getButtonLabel() ? $result->getButtonLabel() : __( 'Ver', 'adam-bot' ),
 			);
 			if ( 3 === count( $cards ) ) {
 				break;
@@ -376,10 +371,6 @@ final class ResponseFormatter {
 			'action' => 'message',
 		);
 		return true;
-	}
-
-	private function isLikelyEnglish( string $question ): bool {
-		return 1 === preg_match( '/\b(what|how|where|when|why|who|can|could|does|is|are|membership|member|events|rules)\b/i', $question );
 	}
 
 	private function truncate( string $value, int $maximum ): string {

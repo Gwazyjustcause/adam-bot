@@ -9,7 +9,7 @@ use AdamBot\Knowledge\Response\Component\ComponentInterface;
 use AdamBot\Knowledge\Response\Component\InformationBox;
 defined( 'ABSPATH' ) || exit;
 final class MembershipProvider extends AbstractFilterProvider {
-	public function __construct() { parent::__construct( 'membership', __( 'Live Membership', 'adam-bot' ), array( Intent::MEMBERSHIP ), 96, 'adam_bot_dynamic_membership', 180 ); }
+	public function __construct() { parent::__construct( 'membership', __( 'Sócios em tempo real', 'adam-bot' ), array( Intent::MEMBERSHIP ), 96, 'adam_bot_dynamic_membership', 180 ); }
 	protected function items( string $query, string $intent ): array {
 		$items = parent::items( $query, $intent );
 		$legacy = apply_filters( 'adam_bot_knowledge_membership_items', array(), $query );
@@ -22,7 +22,7 @@ final class MembershipProvider extends AbstractFilterProvider {
 		$components = array( ( new InformationBox( $result->getContent() ) )->toArray() );
 		$url = esc_url_raw( (string) ( $item['url'] ?? $item['registration_url'] ?? '' ) );
 		if ( '' !== $url ) {
-			$components[] = ( new ButtonGroup( array( array( 'label' => sanitize_text_field( (string) ( $item['button_text'] ?? __( 'Become a Member', 'adam-bot' ) ) ), 'url' => $url ) ) ) )->toArray();
+			$components[] = ( new ButtonGroup( array( array( 'label' => sanitize_text_field( (string) ( $item['button_text'] ?? __( 'Tornar-me sócio', 'adam-bot' ) ) ), 'url' => $url ) ) ) )->toArray();
 		}
 		$data = $result->toArray();
 		$data['attributes']['components'] = $components;

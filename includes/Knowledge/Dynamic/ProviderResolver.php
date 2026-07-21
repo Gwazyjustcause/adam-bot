@@ -61,6 +61,7 @@ final class ProviderResolver {
 				$suggestions = $provider->getSuggestions( $query, $intent );
 			} catch ( \Throwable $exception ) {
 				$this->logger->error( 'Dynamic provider suggestions failed.', array( 'provider' => $provider->getKey(), 'intent' => $intent, 'error_type' => get_class( $exception ), 'error' => $exception->getMessage() ) );
+				do_action( 'adam_bot_dynamic_provider_error', $provider->getKey(), $exception );
 				$suggestions = array();
 			}
 			if ( ! empty( $suggestions ) ) {
@@ -93,6 +94,7 @@ final class ProviderResolver {
 			$results = $provider->search( $query, $intent );
 		} catch ( \Throwable $exception ) {
 			$this->logger->error( 'Dynamic knowledge provider failed.', array( 'provider' => $provider->getKey(), 'intent' => $intent, 'error_type' => get_class( $exception ), 'error' => $exception->getMessage() ) );
+			do_action( 'adam_bot_dynamic_provider_error', $provider->getKey(), $exception );
 			return array();
 		}
 		$results = array_values( array_filter( is_array( $results ) ? $results : array(), static function ( $result ): bool { return $result instanceof KnowledgeResult; } ) );
@@ -104,6 +106,7 @@ final class ProviderResolver {
 		try {
 			return max( 10, min( 900, $provider->getCacheTtl() ) );
 		} catch ( \Throwable $exception ) {
+			do_action( 'adam_bot_dynamic_provider_error', $provider->getKey(), $exception );
 			return 120;
 		}
 	}

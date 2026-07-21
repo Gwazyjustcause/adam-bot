@@ -62,7 +62,7 @@ final class ManualSource implements KnowledgeSourceInterface {
 			if ( '' !== $content ) {
 				$results[] = new KnowledgeResult(
 					$this->getKey(),
-					__( 'ADAM knowledge entry', 'adam-bot' ),
+					__( 'Entrada de conhecimento ADAM', 'adam-bot' ),
 					$title,
 					$content,
 					$category,

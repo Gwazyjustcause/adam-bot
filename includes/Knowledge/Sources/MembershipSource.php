@@ -55,13 +55,13 @@ final class MembershipSource implements KnowledgeSourceInterface {
 
 			$title    = $this->clean( (string) ( $item['title'] ?? '' ) );
 			$content  = $this->clean( (string) ( $item['content'] ?? '' ) );
-			$category = $this->clean( (string) ( $item['category'] ?? __( 'Membership', 'adam-bot' ) ) );
+			$category = $this->clean( (string) ( $item['category'] ?? __( 'Sócios', 'adam-bot' ) ) );
 			$priority = max( 0, min( 100, (int) ( $item['priority'] ?? 50 ) ) );
 
 			if ( '' !== $content ) {
 				$results[] = new KnowledgeResult(
 					$this->getKey(),
-					__( 'ADAM membership information', 'adam-bot' ),
+					__( 'Informação de sócios ADAM', 'adam-bot' ),
 					$title,
 					$content,
 					$category,

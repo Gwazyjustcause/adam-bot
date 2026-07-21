@@ -58,15 +58,15 @@ final class RevisionManager {
 	/** @param array<int,array<string,string>> $fields Diff fields. @param object $compare_from Previous revision. @param object $compare_to New revision. @return array<int,array<string,string>> */
 	public function revision_diff( array $fields, $compare_from, $compare_to ): array {
 		$labels = array(
-			EntrySchema::QUESTION_META      => __( 'Question', 'adam-bot' ),
-			EntrySchema::KEYWORDS_META      => __( 'Keywords', 'adam-bot' ),
-			EntrySchema::SYNONYMS_META      => __( 'Synonyms', 'adam-bot' ),
-			EntrySchema::PRIORITY_META      => __( 'Priority', 'adam-bot' ),
-			EntrySchema::SEARCH_WEIGHT_META => __( 'Search Weight', 'adam-bot' ),
-			EntrySchema::VISIBILITY_META    => __( 'Visibility', 'adam-bot' ),
-			EntrySchema::BUTTON_TEXT_META   => __( 'Button text', 'adam-bot' ),
-			EntrySchema::BUTTON_URL_META    => __( 'Button URL', 'adam-bot' ),
-			EntrySchema::RESPONSE_BLOCKS_META => __( 'Response blocks', 'adam-bot' ),
+			EntrySchema::QUESTION_META      => __( 'Pergunta', 'adam-bot' ),
+			EntrySchema::KEYWORDS_META      => __( 'Palavras-chave', 'adam-bot' ),
+			EntrySchema::SYNONYMS_META      => __( 'Sinónimos', 'adam-bot' ),
+			EntrySchema::PRIORITY_META      => __( 'Prioridade', 'adam-bot' ),
+			EntrySchema::SEARCH_WEIGHT_META => __( 'Peso na pesquisa', 'adam-bot' ),
+			EntrySchema::VISIBILITY_META    => __( 'Visibilidade', 'adam-bot' ),
+			EntrySchema::BUTTON_TEXT_META   => __( 'Texto do botão', 'adam-bot' ),
+			EntrySchema::BUTTON_URL_META    => __( 'URL do botão', 'adam-bot' ),
+			EntrySchema::RESPONSE_BLOCKS_META => __( 'Blocos de resposta', 'adam-bot' ),
 		);
 
 		foreach ( $labels as $key => $label ) {
