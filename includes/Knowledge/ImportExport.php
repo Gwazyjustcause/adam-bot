@@ -174,7 +174,7 @@ final class ImportExport {
 			}
 			$question   = (string) get_post_meta( $post->ID, EntrySchema::QUESTION_META, true );
 			$rows[] = array(
-				'type'            => 'adam_bot_faq' === $post->post_type ? 'faq' : 'knowledge',
+				'type'            => 'adam_bot_faq' === $post->post_type ? 'faq' : EntrySchema::sanitizeType( get_post_meta( $post->ID, EntrySchema::ENTRY_TYPE_META, true ) ),
 				'external_id'     => (string) $post->ID,
 				'title'           => (string) $post->post_title,
 				'question'        => '' !== $question ? $question : (string) $post->post_title,
@@ -198,6 +198,12 @@ final class ImportExport {
 				'source_post_id'  => (string) absint( get_post_meta( $post->ID, EntrySchema::SOURCE_POST_META, true ) ),
 				'source_key'      => sanitize_text_field( (string) get_post_meta( $post->ID, EntrySchema::SOURCE_KEY_META, true ) ),
 				'source_hash'     => sanitize_text_field( (string) get_post_meta( $post->ID, EntrySchema::SOURCE_HASH_META, true ) ),
+				'source'          => EntrySchema::sanitizeSource( get_post_meta( $post->ID, EntrySchema::SOURCE_META, true ) ),
+				'last_indexed'    => sanitize_text_field( (string) get_post_meta( $post->ID, EntrySchema::LAST_INDEXED_META, true ) ),
+				'last_synced'     => sanitize_text_field( (string) get_post_meta( $post->ID, EntrySchema::LAST_SYNCED_META, true ) ),
+				'sync_status'     => EntrySchema::sanitizeSyncStatus( get_post_meta( $post->ID, EntrySchema::SYNC_STATUS_META, true ) ),
+				'sync_snapshot'   => (string) wp_json_encode( get_post_meta( $post->ID, EntrySchema::SYNC_SNAPSHOT_META, true ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
+				'pending_snapshot'=> (string) wp_json_encode( get_post_meta( $post->ID, EntrySchema::PENDING_SNAPSHOT_META, true ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
 			);
 		}
 		return $rows;
@@ -205,7 +211,7 @@ final class ImportExport {
 
 	/** @return array<string,string> */
 	private function emptyRow(): array {
-		return array_fill_keys( array( 'type', 'external_id', 'title', 'question', 'answer', 'status', 'visibility', 'categories', 'category_metadata', 'keywords', 'synonyms', 'priority', 'search_weight', 'related_page', 'button_text', 'button_url', 'related_entries', 'response_blocks', 'order', 'language', 'generated', 'source_post_id', 'source_key', 'source_hash' ), '' );
+		return array_fill_keys( array( 'type', 'external_id', 'title', 'question', 'answer', 'status', 'visibility', 'categories', 'category_metadata', 'keywords', 'synonyms', 'priority', 'search_weight', 'related_page', 'button_text', 'button_url', 'related_entries', 'response_blocks', 'order', 'language', 'generated', 'source_post_id', 'source_key', 'source_hash', 'source', 'last_indexed', 'last_synced', 'sync_status', 'sync_snapshot', 'pending_snapshot' ), '' );
 	}
 
 	/** @return array<int,array<string,mixed>> */
@@ -243,7 +249,7 @@ final class ImportExport {
 
 	/** @param array<string,mixed> $row Imported row. @return int Inserted post ID or zero. */
 	private function importRow( array $row ): int {
-		$type     = 'faq' === sanitize_key( (string) ( $row['type'] ?? '' ) ) ? 'adam_bot_faq' : 'adam_bot_knowledge';
+		$type     = 'adam_bot_knowledge';
 		$title    = sanitize_text_field( (string) ( $row['title'] ?? '' ) );
 		$question = sanitize_text_field( (string) ( $row['question'] ?? $title ) );
 		if ( '' === $title || '' === $question ) {
@@ -270,6 +276,10 @@ final class ImportExport {
 			$decoded = json_decode( $blocks, true );
 			$blocks  = is_array( $decoded ) ? $decoded : array();
 		}
+		$sync_snapshot = $row['sync_snapshot'] ?? array();
+		$pending_snapshot = $row['pending_snapshot'] ?? array();
+		if ( is_string( $sync_snapshot ) ) { $decoded = json_decode( $sync_snapshot, true ); $sync_snapshot = is_array( $decoded ) ? $decoded : array(); }
+		if ( is_string( $pending_snapshot ) ) { $decoded = json_decode( $pending_snapshot, true ); $pending_snapshot = is_array( $decoded ) ? $decoded : array(); }
 		$meta = array(
 			EntrySchema::QUESTION_META        => $question,
 			EntrySchema::KEYWORDS_META        => EntrySchema::sanitizeTerms( str_replace( '|', ',', (string) ( $row['keywords'] ?? '' ) ) ),
@@ -288,6 +298,13 @@ final class ImportExport {
 			EntrySchema::SOURCE_POST_META     => absint( $row['source_post_id'] ?? 0 ),
 			EntrySchema::SOURCE_KEY_META      => sanitize_text_field( (string) ( $row['source_key'] ?? '' ) ),
 			EntrySchema::SOURCE_HASH_META     => sanitize_text_field( (string) ( $row['source_hash'] ?? '' ) ),
+			EntrySchema::ENTRY_TYPE_META      => EntrySchema::sanitizeType( $row['type'] ?? 'knowledge' ),
+			EntrySchema::SOURCE_META          => EntrySchema::sanitizeSource( $row['source'] ?? 'manual' ),
+			EntrySchema::LAST_INDEXED_META    => sanitize_text_field( (string) ( $row['last_indexed'] ?? '' ) ),
+			EntrySchema::LAST_SYNCED_META     => sanitize_text_field( (string) ( $row['last_synced'] ?? '' ) ),
+			EntrySchema::SYNC_STATUS_META     => EntrySchema::sanitizeSyncStatus( $row['sync_status'] ?? 'modified' ),
+			EntrySchema::SYNC_SNAPSHOT_META   => is_array( $sync_snapshot ) ? $sync_snapshot : array(),
+			EntrySchema::PENDING_SNAPSHOT_META=> is_array( $pending_snapshot ) ? $pending_snapshot : array(),
 		);
 		foreach ( $meta as $key => $value ) {
 			update_post_meta( (int) $post_id, $key, $value );

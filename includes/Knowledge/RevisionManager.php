@@ -23,7 +23,7 @@ final class RevisionManager {
 
 	/** @param array<int,string> $keys Existing keys. @param string $post_type Post type. @return array<int,string> */
 	public function revision_meta_keys( array $keys, string $post_type ): array {
-		if ( in_array( $post_type, array( 'adam_bot_knowledge', 'adam_bot_faq' ), true ) ) {
+		if ( 'adam_bot_knowledge' === $post_type ) {
 			$keys = array_values( array_unique( array_merge( $keys, EntrySchema::revisionMetaKeys() ) ) );
 		}
 		return $keys;

@@ -25,6 +25,7 @@ use AdamBot\Knowledge\ImportExport;
 use AdamBot\Knowledge\RevisionManager;
 use AdamBot\Knowledge\LanguageDetector;
 use AdamBot\Knowledge\SiteKnowledgeIndexer;
+use AdamBot\Knowledge\KnowledgeMigration;
 use AdamBot\Knowledge\Dynamic\BuiltInProviders;
 use AdamBot\Knowledge\Dynamic\DynamicProviderRegistry;
 use AdamBot\Knowledge\Dynamic\IntentDetector;
@@ -34,9 +35,7 @@ use AdamBot\Knowledge\Search\ResultRanker;
 use AdamBot\Knowledge\Search\SearchService;
 use AdamBot\Knowledge\Response\ResponseFormatter;
 use AdamBot\Knowledge\Sources\EventSource;
-use AdamBot\Knowledge\Sources\FAQSource;
 use AdamBot\Knowledge\Sources\ManualSource;
-use AdamBot\Knowledge\Sources\PageSource;
 use AdamBot\UX\ExperienceSettings;
 
 defined( 'ABSPATH' ) || exit;
@@ -109,8 +108,6 @@ final class Plugin {
 			$matcher,
 			$logger,
 			array(
-				new FAQSource(),
-				new PageSource( $knowledge_settings ),
 				new ManualSource(),
 				new EventSource(),
 			),
@@ -119,6 +116,7 @@ final class Plugin {
 		$response_formatter = new ResponseFormatter( $matcher, $language_detector );
 		$knowledge_admin    = new KnowledgeAdmin( $knowledge_settings, $search_service, $response_formatter, $duplicate_detector );
 		$site_indexer       = new SiteKnowledgeIndexer( $language_detector );
+		$knowledge_migration = new KnowledgeMigration();
 		$search_insights    = new SearchInsights( $duplicate_detector, $intent_detector );
 		$knowledge_admin->register_content_types();
 
@@ -133,6 +131,7 @@ final class Plugin {
 			new RevisionManager(),
 			new ImportExport(),
 			$site_indexer,
+			$knowledge_migration,
 			new Assets( $experience_settings ),
 		);
 
@@ -140,6 +139,7 @@ final class Plugin {
 			$component->register_hooks();
 		}
 		$site_indexer->maybeScheduleInitial();
+		$knowledge_migration->maybeSchedule();
 	}
 
 	/**

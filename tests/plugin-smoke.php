@@ -66,6 +66,9 @@ $test_post_meta             = array(
 		'_adam_bot_synonyms' => array( 'quota', 'fees' ),
 		'_adam_bot_search_weight' => '100',
 		'_adam_bot_related_entries' => array( 204 ),
+		'_adam_bot_entry_type' => 'faq',
+		'_adam_bot_source' => 'faq_import',
+		'_adam_bot_language' => 'en',
 	),
 	203 => array(
 		'_adam_bot_category' => 'Rules',
@@ -93,7 +96,7 @@ $test_posts                 = array(
 		'post_excerpt' => '',
 	),
 	(object) array(
-		'ID' => 201, 'post_type' => 'adam_bot_faq', 'post_status' => 'publish',
+		'ID' => 201, 'post_type' => 'adam_bot_knowledge', 'post_status' => 'publish',
 		'post_title' => 'Membership Prices',
 		'post_content' => 'Sócio Efetivo costs €22 per year. Sócio Aderente costs €12 per year.',
 		'post_excerpt' => '',
@@ -637,14 +640,30 @@ if ( 'admin' === $test_mode ) {
 	$test_options['adam_bot_knowledge_settings']['debug_mode'] = 0;
 	test_assert( isset( $test_admin['settings']['adam_bot_experience_settings'], $test_admin['settings']['adam_bot_knowledge_settings'] ), 'Admin settings were not registered.' );
 	test_assert( ! isset( $test_admin['settings']['adam_bot_ai_settings'] ), 'AI settings are still registered.' );
-	test_assert( isset( $test_post_types['adam_bot_faq'], $test_post_types['adam_bot_knowledge'] ), 'Knowledge entry types were not registered.' );
+	test_assert( isset( $test_post_types['adam_bot_faq'], $test_post_types['adam_bot_knowledge'] ) && false === ( $test_post_types['adam_bot_faq']['show_ui'] ?? true ), 'The canonical Knowledge store or hidden legacy migration type was not registered.' );
 	test_assert( in_array( 'revisions', $test_post_types['adam_bot_knowledge']['supports'], true ), 'Knowledge version history is not enabled.' );
 	test_assert( isset( $test_admin['taxonomies']['adam_bot_category'] ), 'Unlimited Knowledge categories were not registered.' );
-	$required_menus = array( 'adam-bot', 'adam-bot-conversations', 'edit.php?post_type=adam_bot_knowledge', 'edit.php?post_type=adam_bot_faq', 'adam-bot-search-analytics', 'adam-bot-unanswered', 'adam-bot-providers', 'adam-bot-settings' );
-	test_assert( empty( array_diff( $required_menus, array_keys( $test_admin['submenus'] ) ) ), 'Phase 8 admin navigation is incomplete.' );
+	$required_menus = array( 'adam-bot', 'adam-bot-conversations', 'edit.php?post_type=adam_bot_knowledge', 'adam-bot-search-analytics', 'adam-bot-unanswered', 'adam-bot-providers', 'adam-bot-settings' );
+	test_assert( empty( array_diff( $required_menus, array_keys( $test_admin['submenus'] ) ) ) && ! isset( $test_admin['submenus']['edit.php?post_type=adam_bot_faq'] ), 'Unified Knowledge admin navigation is incomplete.' );
 	$meta_box_ids = array_map( static function ( array $box ): string { return (string) ( $box[0] ?? '' ); }, $test_meta_boxes );
-	test_assert( in_array( 'adam-bot-response-builder', $meta_box_ids, true ) && in_array( 'adam-bot-search-preview', $meta_box_ids, true ) && in_array( 'adam-bot-duplicates', $meta_box_ids, true ), 'Phase 8 entry management boxes are incomplete.' );
-	test_assert( isset( $test_hooks['wp_post_revision_meta_keys'], $test_hooks['wp_restore_post_revision'], $test_hooks['admin_post_adam_bot_import_knowledge'], $test_hooks['admin_post_adam_bot_export_knowledge'], $test_hooks['admin_post_adam_bot_export_backup'], $test_hooks['adam_bot_daily_maintenance'], $test_hooks['adam_bot_initial_site_index'], $test_hooks['adam_bot_site_index_translation_batch'], $test_hooks['admin_post_adam_bot_rebuild_site_knowledge'] ), 'Revisions, indexing, backup, or maintenance hooks were not registered.' );
+	test_assert( in_array( 'adam-bot-response-builder', $meta_box_ids, true ) && in_array( 'adam-bot-search-preview', $meta_box_ids, true ) && in_array( 'adam-bot-duplicates', $meta_box_ids, true ) && in_array( 'adam-bot-source-tracking', $meta_box_ids, true ), 'Unified entry management boxes are incomplete.' );
+	test_assert( isset( $test_hooks['wp_post_revision_meta_keys'], $test_hooks['wp_restore_post_revision'], $test_hooks['admin_post_adam_bot_import_knowledge'], $test_hooks['admin_post_adam_bot_export_knowledge'], $test_hooks['admin_post_adam_bot_export_backup'], $test_hooks['adam_bot_daily_maintenance'], $test_hooks['adam_bot_initial_site_index'], $test_hooks['adam_bot_site_index_translation_batch'], $test_hooks['admin_post_adam_bot_rebuild_site_knowledge'], $test_hooks['adam_bot_migrate_legacy_knowledge'], $test_hooks['admin_init'], $test_hooks['admin_post_adam_bot_apply_website_update'], $test_hooks['admin_post_adam_bot_keep_knowledge_version'], $test_hooks['pre_get_posts'] ), 'Revisions, unified migration, filtering, indexing, sync, backup, or maintenance hooks were not registered.' );
+	$columns_callback = $test_hooks['manage_adam_bot_knowledge_posts_columns'][0]['callback'] ?? null;
+	$columns = is_callable( $columns_callback ) ? call_user_func( $columns_callback, array( 'cb' => 'cb', 'title' => 'Title' ) ) : array();
+	test_assert( empty( array_diff( array( 'title', 'adam_type', 'adam_language', 'taxonomy-adam_bot_category', 'adam_source', 'adam_status', 'adam_updated', 'adam_indexed', 'adam_priority' ), array_keys( $columns ) ) ), 'The unified Knowledge list does not expose the required editorial columns.' );
+	$revision_keys = \AdamBot\Knowledge\EntrySchema::revisionMetaKeys();
+	test_assert( in_array( \AdamBot\Knowledge\EntrySchema::ENTRY_TYPE_META, $revision_keys, true ) && in_array( \AdamBot\Knowledge\EntrySchema::SOURCE_META, $revision_keys, true ) && in_array( \AdamBot\Knowledge\EntrySchema::PENDING_SNAPSHOT_META, $revision_keys, true ), 'Unified provenance and synchronization metadata is missing from revisions.' );
+	$original_answer = (string) $test_posts[1]->post_content;
+	$test_post_meta[201][ \AdamBot\Knowledge\EntrySchema::SOURCE_KEY_META ] = '101:about:en';
+	$test_post_meta[201][ \AdamBot\Knowledge\EntrySchema::SOURCE_HASH_META ] = hash( 'sha256', 'accepted-version' );
+	$test_post_meta[201][ \AdamBot\Knowledge\EntrySchema::SOURCE_META ] = 'website';
+	$test_post_meta[201][ \AdamBot\Knowledge\EntrySchema::SYNC_STATUS_META ] = 'modified';
+	$indexer = new \AdamBot\Knowledge\SiteKnowledgeIndexer( new \AdamBot\Knowledge\LanguageDetector() );
+	$upsert = new ReflectionMethod( $indexer, 'upsert' );
+	$upsert->setAccessible( true );
+	$new_hash = hash( 'sha256', 'changed-website-version' );
+	$upsert->invoke( $indexer, array( 'title' => 'Changed website title', 'question' => 'Changed website question?', 'answer' => 'Changed website answer.', 'keywords' => array( 'changed' ), 'category' => 'Association', 'related_page' => 101, 'button_text' => 'View', 'button_url' => 'https://example.test/?p=101', 'language' => 'en', 'source_post' => 101, 'source_key' => '101:about:en', 'source_hash' => $new_hash, 'type' => 'knowledge' ) );
+	test_assert( $original_answer === (string) $test_posts[1]->post_content && 'out_of_date' === ( $test_post_meta[201][ \AdamBot\Knowledge\EntrySchema::SYNC_STATUS_META ] ?? '' ) && 'Changed website answer.' === ( $test_post_meta[201][ \AdamBot\Knowledge\EntrySchema::PENDING_SNAPSHOT_META ]['answer'] ?? '' ), 'Website reindexing overwrote administrator content instead of storing an out-of-date proposal.' );
 
 	ob_start();
 	call_user_func( $test_admin['menus']['adam-bot'] );

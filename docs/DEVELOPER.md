@@ -14,7 +14,7 @@ REST /adam-bot/v1/chat
   -> Analytics anónima
 ```
 
-As entradas editoriais vivem nos tipos de conteúdo `adam_bot_knowledge` e `adam_bot_faq`. As categorias usam a taxonomia hierárquica `adam_bot_category`. O WordPress gere permissões, revisões e estados editoriais.
+Todas as entradas editoriais vivem no tipo de conteúdo canónico `adam_bot_knowledge`. O metadado `Type` distingue Knowledge de FAQ, sem criar duas bases de dados ou dois pipelines de pesquisa. `Source` regista a proveniência e `Language` distingue PT de EN. As categorias usam a taxonomia hierárquica `adam_bot_category`. O WordPress gere permissões, revisões e estados editoriais.
 
 ## Registar um fornecedor dinâmico
 
@@ -99,9 +99,9 @@ Evite consultas no construtor do fornecedor. `isAvailable()` deve ser barato; a 
 
 ## Indexação do website
 
-Na primeira inicialização, `SiteKnowledgeIndexer` agenda uma importação única de todos os posts publicados pertencentes a tipos públicos. Cada secção editorial relevante origina posts normais `adam_bot_knowledge` e `adam_bot_faq`; estes não ficam bloqueados e participam em revisões, exportação e pesquisa como qualquer entrada criada à mão. Formulários, controlos, palavras-passe e linhas com dados de pagamento são removidos antes da extração.
+Na primeira inicialização, `SiteKnowledgeIndexer` agenda uma importação única de todos os posts publicados pertencentes a tipos públicos. Cada secção editorial relevante origina um post normal `adam_bot_knowledge`, com `Type: Knowledge` ou `Type: FAQ`; estes não ficam bloqueados e participam em revisões, exportação e pesquisa como qualquer entrada criada à mão. Formulários, controlos, palavras-passe e linhas com dados de pagamento são removidos antes da extração.
 
-O metadado de proveniência permite que **Reconstruir a base de conhecimento** atualize apenas entradas geradas. Entradas manuais nunca são alteradas. A reconstrução é a única operação que volta a aplicar o conteúdo da página depois da primeira importação.
+O metadado de proveniência permite que **Reconstruir a base de conhecimento** detete alterações sem as aplicar. Uma entrada nova fica `Synced`; qualquer edição administrativa passa-a a `Modified`; uma alteração posterior na página guarda uma proposta separada e marca-a `Out of date`. O administrador compara as versões e decide entre **Atualizar a partir do website** e **Manter versão atual**. Nenhuma reconstrução substitui automaticamente trabalho editorial.
 
 Páginas inglesas fornecidas por Polylang ou WPML são indexadas diretamente. Quando não existem, a tradução de conteúdo público decorre em pequenos lotes WP-Cron e cria uma variante inglesa independente na base de dados. O serviço remoto predefinido é MyMemory; integrações empresariais devem substituí-lo através de `adam_bot_site_index_translation`. Nunca envie conteúdo privado neste filtro.
 

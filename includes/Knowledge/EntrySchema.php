@@ -33,6 +33,13 @@ final class EntrySchema {
 	public const SOURCE_POST_META = '_adam_bot_source_post_id';
 	public const SOURCE_KEY_META = '_adam_bot_source_key';
 	public const SOURCE_HASH_META = '_adam_bot_source_hash';
+	public const ENTRY_TYPE_META = '_adam_bot_entry_type';
+	public const SOURCE_META = '_adam_bot_source';
+	public const LAST_INDEXED_META = '_adam_bot_last_indexed';
+	public const LAST_SYNCED_META = '_adam_bot_last_synced';
+	public const SYNC_STATUS_META = '_adam_bot_sync_status';
+	public const SYNC_SNAPSHOT_META = '_adam_bot_sync_snapshot';
+	public const PENDING_SNAPSHOT_META = '_adam_bot_pending_snapshot';
 	public const LEGACY_CATEGORY_META = '_adam_bot_category';
 
 	public const TERM_COLOR_META = '_adam_bot_category_color';
@@ -57,12 +64,33 @@ final class EntrySchema {
 			self::SOURCE_POST_META,
 			self::SOURCE_KEY_META,
 			self::SOURCE_HASH_META,
+			self::ENTRY_TYPE_META,
+			self::SOURCE_META,
+			self::LAST_INDEXED_META,
+			self::LAST_SYNCED_META,
+			self::SYNC_STATUS_META,
+			self::SYNC_SNAPSHOT_META,
+			self::PENDING_SNAPSHOT_META,
 		);
 	}
 
 	/** Limits stored content languages to the two languages supported by the public assistant. */
 	public static function sanitizeLanguage( $value ): string {
 		return 'en' === sanitize_key( (string) $value ) ? 'en' : 'pt';
+	}
+
+	public static function sanitizeType( $value ): string {
+		return 'faq' === sanitize_key( (string) $value ) ? 'faq' : 'knowledge';
+	}
+
+	public static function sanitizeSource( $value ): string {
+		$source = sanitize_key( (string) $value );
+		return in_array( $source, array( 'manual', 'website', 'faq_import', 'events', 'partners', 'teams' ), true ) ? $source : 'manual';
+	}
+
+	public static function sanitizeSyncStatus( $value ): string {
+		$status = sanitize_key( (string) $value );
+		return in_array( $status, array( 'synced', 'modified', 'out_of_date' ), true ) ? $status : 'modified';
 	}
 
 	/** @param mixed $value Comma- or line-separated terms. @return array<int, string> */

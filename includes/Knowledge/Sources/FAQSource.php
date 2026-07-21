@@ -18,7 +18,10 @@ defined( 'ABSPATH' ) || exit;
 /** Searches enabled, published FAQ entries. */
 final class FAQSource implements KnowledgeSourceInterface {
 	/** FAQ custom post type. */
-	public const POST_TYPE = 'adam_bot_faq';
+	public const POST_TYPE = 'adam_bot_knowledge';
+
+	/** Legacy post type migrated into the canonical Knowledge store. */
+	public const LEGACY_POST_TYPE = 'adam_bot_faq';
 
 	/** Entry category meta key. */
 	public const CATEGORY_META = EntrySchema::LEGACY_CATEGORY_META;
@@ -50,6 +53,9 @@ final class FAQSource implements KnowledgeSourceInterface {
 					'title'      => 'ASC',
 				),
 				'no_found_rows'  => true,
+				'meta_query'     => array(
+					array( 'key' => EntrySchema::ENTRY_TYPE_META, 'value' => 'faq' ),
+				),
 			)
 		);
 		$results = array();

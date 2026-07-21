@@ -35,6 +35,9 @@ final class KnowledgeAdmin {
 	/** @var DuplicateDetector */
 	private $duplicate_detector;
 
+	/** @var bool Prevents explicit sync actions being classified as editor changes. */
+	private $syncing = false;
+
 	public function __construct(
 		KnowledgeSettings $settings,
 		SearchService $search_service,
@@ -67,20 +70,21 @@ final class KnowledgeAdmin {
 		add_action( 'edited_' . EntrySchema::TAXONOMY, array( $this->settings, 'bumpCacheVersion' ) );
 		add_action( 'delete_' . EntrySchema::TAXONOMY, array( $this->settings, 'bumpCacheVersion' ) );
 		add_filter( 'manage_' . ManualSource::POST_TYPE . '_posts_columns', array( $this, 'entry_columns' ) );
-		add_filter( 'manage_' . FAQSource::POST_TYPE . '_posts_columns', array( $this, 'entry_columns' ) );
 		add_filter( 'manage_edit-' . ManualSource::POST_TYPE . '_sortable_columns', array( $this, 'sortable_columns' ) );
-		add_filter( 'manage_edit-' . FAQSource::POST_TYPE . '_sortable_columns', array( $this, 'sortable_columns' ) );
 		add_action( 'manage_' . ManualSource::POST_TYPE . '_posts_custom_column', array( $this, 'render_entry_column' ), 10, 2 );
-		add_action( 'manage_' . FAQSource::POST_TYPE . '_posts_custom_column', array( $this, 'render_entry_column' ), 10, 2 );
 		add_action( 'quick_edit_custom_box', array( $this, 'render_quick_edit' ), 10, 2 );
 		add_action( 'save_post', array( $this, 'save_quick_edit' ), 25, 3 );
+		add_action( 'post_updated', array( $this, 'track_post_edit' ), 40, 3 );
+		add_action( 'set_object_terms', array( $this, 'track_term_edit' ), 40, 6 );
+		add_action( 'admin_notices', array( $this, 'render_sync_notice' ) );
+		add_action( 'admin_post_adam_bot_apply_website_update', array( $this, 'apply_website_update' ) );
+		add_action( 'admin_post_adam_bot_keep_knowledge_version', array( $this, 'keep_knowledge_version' ) );
 		add_filter( 'bulk_actions-edit-' . ManualSource::POST_TYPE, array( $this, 'bulk_actions' ) );
-		add_filter( 'bulk_actions-edit-' . FAQSource::POST_TYPE, array( $this, 'bulk_actions' ) );
 		add_filter( 'handle_bulk_actions-edit-' . ManualSource::POST_TYPE, array( $this, 'handle_bulk_actions' ), 10, 3 );
-		add_filter( 'handle_bulk_actions-edit-' . FAQSource::POST_TYPE, array( $this, 'handle_bulk_actions' ), 10, 3 );
 		add_filter( 'display_post_states', array( $this, 'display_post_states' ), 10, 2 );
 		add_filter( 'enter_title_here', array( $this, 'title_placeholder' ), 10, 2 );
 		add_action( 'restrict_manage_posts', array( $this, 'render_list_tools' ) );
+		add_action( 'pre_get_posts', array( $this, 'apply_list_filters' ) );
 		add_filter( 'posts_search', array( $this, 'extend_admin_search' ), 10, 2 );
 		add_action( 'admin_post_adam_bot_save_search', array( $this, 'save_admin_search' ) );
 	}
@@ -128,28 +132,21 @@ final class KnowledgeAdmin {
 			)
 		);
 
+		// Keep the legacy type queryable only by the background migration.
 		register_post_type(
-			FAQSource::POST_TYPE,
-			array_merge(
-				$common,
-				array(
-					'labels' => array(
-						'name'          => __( 'FAQ', 'adam-bot' ),
-						'singular_name' => __( 'FAQ', 'adam-bot' ),
-						'add_new'       => __( 'Adicionar FAQ', 'adam-bot' ),
-						'add_new_item'  => __( 'Adicionar FAQ', 'adam-bot' ),
-						'edit_item'     => __( 'Editar FAQ', 'adam-bot' ),
-						'search_items'  => __( 'Pesquisar FAQ', 'adam-bot' ),
-						'not_found'     => __( 'Não foram encontradas FAQ.', 'adam-bot' ),
-					),
-					'menu_icon' => 'dashicons-editor-help',
-				)
+			FAQSource::LEGACY_POST_TYPE,
+			array(
+				'public' => false,
+				'show_ui' => false,
+				'show_in_menu' => false,
+				'supports' => array( 'title', 'editor', 'revisions' ),
+				'taxonomies' => array( EntrySchema::TAXONOMY ),
 			)
 		);
 
 		register_taxonomy(
 			EntrySchema::TAXONOMY,
-			array( ManualSource::POST_TYPE, FAQSource::POST_TYPE ),
+			array( ManualSource::POST_TYPE, FAQSource::LEGACY_POST_TYPE ),
 			array(
 				'labels' => array(
 					'name'          => __( 'Categorias de conhecimento', 'adam-bot' ),
@@ -181,13 +178,6 @@ final class KnowledgeAdmin {
 			'manage_options',
 			'edit.php?post_type=' . ManualSource::POST_TYPE
 		);
-		add_submenu_page(
-			'adam-bot',
-			__( 'FAQ', 'adam-bot' ),
-			__( 'FAQ', 'adam-bot' ),
-			'manage_options',
-			'edit.php?post_type=' . FAQSource::POST_TYPE
-		);
 	}
 
 	/** @return void */
@@ -205,7 +195,7 @@ final class KnowledgeAdmin {
 
 	/** @return void */
 	public function register_meta_boxes(): void {
-		foreach ( array( ManualSource::POST_TYPE, FAQSource::POST_TYPE ) as $post_type ) {
+		foreach ( array( ManualSource::POST_TYPE ) as $post_type ) {
 			add_meta_box( 'adam-bot-basic-information', __( 'Informação básica', 'adam-bot' ), array( $this, 'render_basic_box' ), $post_type, 'normal', 'high' );
 			add_meta_box( 'adam-bot-response-builder', __( 'Compositor de resposta avançada', 'adam-bot' ), array( $this, 'render_response_builder' ), $post_type, 'normal', 'high' );
 			add_meta_box( 'adam-bot-search-fields', __( 'Pesquisa', 'adam-bot' ), array( $this, 'render_search_box' ), $post_type, 'normal', 'default' );
@@ -213,6 +203,7 @@ final class KnowledgeAdmin {
 			add_meta_box( 'adam-bot-related', __( 'Conhecimento relacionado', 'adam-bot' ), array( $this, 'render_related_box' ), $post_type, 'normal', 'default' );
 			add_meta_box( 'adam-bot-search-preview', __( 'Pré-visualização da pesquisa', 'adam-bot' ), array( $this, 'render_preview_box' ), $post_type, 'side', 'high' );
 			add_meta_box( 'adam-bot-duplicates', __( 'Deteção de duplicados', 'adam-bot' ), array( $this, 'render_duplicate_box' ), $post_type, 'side', 'default' );
+			add_meta_box( 'adam-bot-source-tracking', __( 'Origem e sincronização', 'adam-bot' ), array( $this, 'render_source_box' ), $post_type, 'side', 'high' );
 		}
 	}
 
@@ -223,6 +214,8 @@ final class KnowledgeAdmin {
 		$visibility = (string) get_post_meta( $post->ID, EntrySchema::VISIBILITY_META, true );
 		$visibility = in_array( $visibility, array( 'published', 'hidden' ), true ) ? $visibility : 'published';
 		$language   = EntrySchema::sanitizeLanguage( get_post_meta( $post->ID, EntrySchema::LANGUAGE_META, true ) );
+		$entry_type = EntrySchema::sanitizeType( get_post_meta( $post->ID, EntrySchema::ENTRY_TYPE_META, true ) );
+		$source     = EntrySchema::sanitizeSource( get_post_meta( $post->ID, EntrySchema::SOURCE_META, true ) );
 		?>
 		<p><label for="adam-bot-question"><strong><?php esc_html_e( 'Pergunta', 'adam-bot' ); ?></strong></label></p>
 		<input class="widefat" type="text" id="adam-bot-question" name="adam_bot_question" maxlength="500" value="<?php echo esc_attr( $question ); ?>" placeholder="<?php esc_attr_e( 'Como posso tornar-me sócio?', 'adam-bot' ); ?>" />
@@ -236,6 +229,15 @@ final class KnowledgeAdmin {
 		<select id="adam-bot-language" name="adam_bot_language">
 			<option value="pt" <?php selected( $language, 'pt' ); ?>><?php esc_html_e( 'Português', 'adam-bot' ); ?></option>
 			<option value="en" <?php selected( $language, 'en' ); ?>><?php esc_html_e( 'Inglês', 'adam-bot' ); ?></option>
+		</select>
+		<p><label for="adam-bot-entry-type"><strong><?php esc_html_e( 'Tipo', 'adam-bot' ); ?></strong></label></p>
+		<select id="adam-bot-entry-type" name="adam_bot_entry_type">
+			<option value="knowledge" <?php selected( $entry_type, 'knowledge' ); ?>><?php esc_html_e( 'Conhecimento', 'adam-bot' ); ?></option>
+			<option value="faq" <?php selected( $entry_type, 'faq' ); ?>><?php esc_html_e( 'FAQ', 'adam-bot' ); ?></option>
+		</select>
+		<p><label for="adam-bot-source"><strong><?php esc_html_e( 'Origem', 'adam-bot' ); ?></strong></label></p>
+		<select id="adam-bot-source" name="adam_bot_source">
+			<?php foreach ( $this->sourceLabels() as $value => $label ) : ?><option value="<?php echo esc_attr( $value ); ?>" <?php selected( $source, $value ); ?>><?php echo esc_html( $label ); ?></option><?php endforeach; ?>
 		</select>
 		<p class="description"><?php esc_html_e( 'Use o painel Publicar para guardar como rascunho. As entradas ocultas continuam editáveis, mas não são pesquisadas.', 'adam-bot' ); ?></p>
 		<?php
@@ -277,7 +279,7 @@ final class KnowledgeAdmin {
 		$selected = EntrySchema::sanitizeRelatedIds( get_post_meta( $post->ID, EntrySchema::RELATED_ENTRIES_META, true ), (int) $post->ID );
 		$entries  = get_posts(
 			array(
-				'post_type'      => array( ManualSource::POST_TYPE, FAQSource::POST_TYPE ),
+				'post_type'      => ManualSource::POST_TYPE,
 				'post_status'    => array( 'publish', 'draft' ),
 				'posts_per_page' => -1,
 				'post__not_in'   => array( (int) $post->ID ),
@@ -305,7 +307,7 @@ final class KnowledgeAdmin {
 		<div class="adam-bot-related-list">
 			<?php foreach ( $entries as $entry ) : ?>
 				<?php $question = (string) get_post_meta( $entry->ID, EntrySchema::QUESTION_META, true ); $question = '' !== $question ? $question : (string) $entry->post_title; ?>
-				<label draggable="true" data-search="<?php echo esc_attr( function_exists( 'mb_strtolower' ) ? mb_strtolower( $question ) : strtolower( $question ) ); ?>"><input type="checkbox" name="adam_bot_related_entries[]" value="<?php echo esc_attr( (string) $entry->ID ); ?>" <?php checked( in_array( (int) $entry->ID, $selected, true ) ); ?> /> <?php echo esc_html( $question ); ?> <small>(<?php echo esc_html( 'adam_bot_faq' === $entry->post_type ? __( 'FAQ', 'adam-bot' ) : __( 'Knowledge', 'adam-bot' ) ); ?>)</small></label>
+				<label draggable="true" data-search="<?php echo esc_attr( function_exists( 'mb_strtolower' ) ? mb_strtolower( $question ) : strtolower( $question ) ); ?>"><input type="checkbox" name="adam_bot_related_entries[]" value="<?php echo esc_attr( (string) $entry->ID ); ?>" <?php checked( in_array( (int) $entry->ID, $selected, true ) ); ?> /> <?php echo esc_html( $question ); ?> <small>(<?php echo esc_html( 'faq' === EntrySchema::sanitizeType( get_post_meta( $entry->ID, EntrySchema::ENTRY_TYPE_META, true ) ) ? __( 'FAQ', 'adam-bot' ) : __( 'Conhecimento', 'adam-bot' ) ); ?>)</small></label>
 			<?php endforeach; ?>
 		</div>
 		<?php
@@ -346,6 +348,84 @@ final class KnowledgeAdmin {
 		echo '<div id="adam-bot-duplicate-result" aria-live="polite">';
 		$this->render_duplicate_matches( $matches );
 		echo '</div>';
+	}
+
+	/** Displays editable provenance and a non-destructive website comparison. */
+	public function render_source_box( $post ): void {
+		$source = EntrySchema::sanitizeSource( get_post_meta( $post->ID, EntrySchema::SOURCE_META, true ) );
+		$status = EntrySchema::sanitizeSyncStatus( get_post_meta( $post->ID, EntrySchema::SYNC_STATUS_META, true ) );
+		$labels = $this->sourceLabels();
+		echo '<p><strong>' . esc_html__( 'Origem:', 'adam-bot' ) . '</strong> ' . esc_html( $labels[ $source ] ?? $source ) . '</p>';
+		if ( 'website' !== $source ) {
+			echo '<p class="description">' . esc_html__( 'Este registo é totalmente editável e não é sincronizado com uma página do website.', 'adam-bot' ) . '</p>';
+			return;
+		}
+
+		$page_id = absint( get_post_meta( $post->ID, EntrySchema::SOURCE_POST_META, true ) );
+		$page_url = $page_id > 0 ? (string) get_permalink( $page_id ) : '';
+		$indexed = (string) get_post_meta( $post->ID, EntrySchema::LAST_INDEXED_META, true );
+		$synced = (string) get_post_meta( $post->ID, EntrySchema::LAST_SYNCED_META, true );
+		echo '<p><strong>' . esc_html__( 'Estado:', 'adam-bot' ) . '</strong> ' . esc_html( $this->syncStatusLabel( $status ) ) . '</p>';
+		if ( '' !== $page_url ) {
+			echo '<p><strong>' . esc_html__( 'Página original:', 'adam-bot' ) . '</strong> <a href="' . esc_url( $page_url ) . '" target="_blank" rel="noopener">' . esc_html( get_the_title( $page_id ) ) . '</a></p>';
+		}
+		echo '<p><strong>' . esc_html__( 'Última indexação:', 'adam-bot' ) . '</strong> ' . esc_html( $indexed ?: '—' ) . '<br><strong>' . esc_html__( 'Última sincronização:', 'adam-bot' ) . '</strong> ' . esc_html( $synced ?: '—' ) . '</p>';
+
+		$pending = $this->snapshot( get_post_meta( $post->ID, EntrySchema::PENDING_SNAPSHOT_META, true ) );
+		if ( 'out_of_date' !== $status || empty( $pending ) ) {
+			return;
+		}
+		$current = $this->currentSnapshot( (int) $post->ID );
+		echo '<details><summary class="button">' . esc_html__( 'Comparar diferenças', 'adam-bot' ) . '</summary>';
+		if ( ! empty( $pending['deleted'] ) ) {
+			echo '<p>' . esc_html__( 'A secção original deixou de existir no website. O registo foi preservado para decisão do administrador.', 'adam-bot' ) . '</p>';
+		} else {
+			echo '<table class="widefat striped" style="margin-top:10px"><thead><tr><th>' . esc_html__( 'Campo', 'adam-bot' ) . '</th><th>' . esc_html__( 'Atual', 'adam-bot' ) . '</th><th>' . esc_html__( 'Website', 'adam-bot' ) . '</th></tr></thead><tbody>';
+			foreach ( array( 'title' => __( 'Título', 'adam-bot' ), 'question' => __( 'Pergunta', 'adam-bot' ), 'answer' => __( 'Resposta', 'adam-bot' ), 'keywords' => __( 'Palavras-chave', 'adam-bot' ), 'category' => __( 'Categoria', 'adam-bot' ) ) as $field => $label ) {
+				$before = $this->snapshotValue( $current[ $field ] ?? '' );
+				$after = $this->snapshotValue( $pending[ $field ] ?? '' );
+				if ( $before === $after ) { continue; }
+				echo '<tr><th>' . esc_html( $label ) . '</th><td>' . esc_html( $this->excerpt( $before ) ) . '</td><td>' . esc_html( $this->excerpt( $after ) ) . '</td></tr>';
+			}
+			echo '</tbody></table>';
+		}
+		echo '</details><p>';
+		if ( empty( $pending['deleted'] ) ) {
+			$update_url = wp_nonce_url( add_query_arg( array( 'action' => 'adam_bot_apply_website_update', 'post_id' => (int) $post->ID ), admin_url( 'admin-post.php' ) ), 'adam_bot_sync_entry_' . (int) $post->ID );
+			echo '<a class="button button-primary" href="' . esc_url( $update_url ) . '">' . esc_html__( 'Atualizar a partir do website', 'adam-bot' ) . '</a> ';
+		}
+		$keep_url = wp_nonce_url( add_query_arg( array( 'action' => 'adam_bot_keep_knowledge_version', 'post_id' => (int) $post->ID ), admin_url( 'admin-post.php' ) ), 'adam_bot_sync_entry_' . (int) $post->ID );
+		echo '<a class="button" href="' . esc_url( $keep_url ) . '">' . esc_html__( 'Manter versão atual', 'adam-bot' ) . '</a></p>';
+	}
+
+	public function apply_website_update(): void {
+		$post_id = $this->authorizeSyncAction();
+		$pending = $this->snapshot( get_post_meta( $post_id, EntrySchema::PENDING_SNAPSHOT_META, true ) );
+		if ( empty( $pending ) || ! empty( $pending['deleted'] ) ) {
+			$this->redirectToEntry( $post_id );
+		}
+		$this->syncing = true;
+		$this->applySnapshot( $post_id, $pending );
+		update_post_meta( $post_id, EntrySchema::SYNC_SNAPSHOT_META, $pending );
+		update_post_meta( $post_id, EntrySchema::SOURCE_HASH_META, sanitize_text_field( (string) ( $pending['source_hash'] ?? '' ) ) );
+		update_post_meta( $post_id, EntrySchema::SYNC_STATUS_META, 'synced' );
+		update_post_meta( $post_id, EntrySchema::LAST_SYNCED_META, gmdate( 'c' ) );
+		delete_post_meta( $post_id, EntrySchema::PENDING_SNAPSHOT_META );
+		$this->syncing = false;
+		$this->settings->bumpCacheVersion();
+		$this->redirectToEntry( $post_id );
+	}
+
+	public function keep_knowledge_version(): void {
+		$post_id = $this->authorizeSyncAction();
+		$pending = $this->snapshot( get_post_meta( $post_id, EntrySchema::PENDING_SNAPSHOT_META, true ) );
+		if ( ! empty( $pending['source_hash'] ) ) {
+			update_post_meta( $post_id, EntrySchema::SOURCE_HASH_META, sanitize_text_field( (string) $pending['source_hash'] ) );
+		}
+		update_post_meta( $post_id, EntrySchema::SYNC_SNAPSHOT_META, $this->currentSnapshot( $post_id ) );
+		update_post_meta( $post_id, EntrySchema::SYNC_STATUS_META, 'modified' );
+		delete_post_meta( $post_id, EntrySchema::PENDING_SNAPSHOT_META );
+		$this->redirectToEntry( $post_id );
 	}
 
 	/** @param int $index Row index. @param array<string,mixed> $block Block. */
@@ -402,6 +482,8 @@ final class KnowledgeAdmin {
 			EntrySchema::RELATED_ENTRIES_META => EntrySchema::sanitizeRelatedIds( $_POST['adam_bot_related_entries'] ?? array(), $post_id ),
 			EntrySchema::RESPONSE_BLOCKS_META => EntrySchema::sanitizeBlocks( $_POST['adam_bot_response_blocks'] ?? array() ),
 			EntrySchema::LANGUAGE_META        => EntrySchema::sanitizeLanguage( $_POST['adam_bot_language'] ?? 'pt' ),
+			EntrySchema::ENTRY_TYPE_META      => EntrySchema::sanitizeType( $_POST['adam_bot_entry_type'] ?? 'knowledge' ),
+			EntrySchema::SOURCE_META          => EntrySchema::sanitizeSource( $_POST['adam_bot_source'] ?? 'manual' ),
 		);
 		$metadata_changed = false;
 		foreach ( $meta as $key => $value ) {
@@ -412,6 +494,7 @@ final class KnowledgeAdmin {
 		}
 		if ( $metadata_changed ) {
 			$this->create_metadata_revision( $post_id, $post );
+			$this->markModified( $post_id );
 		}
 	}
 
@@ -419,10 +502,6 @@ final class KnowledgeAdmin {
 	public function maybe_invalidate_content_cache( int $post_id, $post, bool $update ): void {
 		unset( $update );
 		if ( wp_is_post_revision( $post_id ) || ! isset( $post->post_type ) ) {
-			return;
-		}
-		if ( 'page' === $post->post_type && in_array( $post_id, $this->settings->getPageIds(), true ) ) {
-			$this->settings->bumpCacheVersion();
 			return;
 		}
 		$event_types = apply_filters( 'adam_bot_knowledge_event_post_types', array() );
@@ -504,33 +583,42 @@ final class KnowledgeAdmin {
 
 	/** @param array<string,string> $columns Existing columns. @return array<string,string> */
 	public function entry_columns( array $columns ): array {
-		$new = array();
-		foreach ( $columns as $key => $label ) {
-			$new[ $key ] = $label;
-			if ( 'title' === $key ) {
-				$new['adam_question'] = __( 'Pergunta', 'adam-bot' );
-				$new['adam_status']   = __( 'Estado', 'adam-bot' );
-				$new['adam_priority'] = __( 'Prioridade / peso', 'adam-bot' );
-				$new['adam_order']    = __( 'Ordem', 'adam-bot' );
-			}
-		}
-		return $new;
+		return array(
+			'cb' => $columns['cb'] ?? '<input type="checkbox" />',
+			'title' => __( 'Título', 'adam-bot' ),
+			'adam_type' => __( 'Tipo', 'adam-bot' ),
+			'adam_language' => __( 'Idioma', 'adam-bot' ),
+			'taxonomy-' . EntrySchema::TAXONOMY => __( 'Categoria', 'adam-bot' ),
+			'adam_source' => __( 'Origem', 'adam-bot' ),
+			'adam_status' => __( 'Estado', 'adam-bot' ),
+			'adam_updated' => __( 'Última atualização', 'adam-bot' ),
+			'adam_indexed' => __( 'Última indexação', 'adam-bot' ),
+			'adam_priority' => __( 'Prioridade', 'adam-bot' ),
+		);
 	}
 
 	public function render_entry_column( string $column, int $post_id ): void {
-		if ( 'adam_question' === $column ) {
-			echo esc_html( (string) get_post_meta( $post_id, EntrySchema::QUESTION_META, true ) );
+		if ( 'adam_type' === $column ) {
+			echo esc_html( 'faq' === EntrySchema::sanitizeType( get_post_meta( $post_id, EntrySchema::ENTRY_TYPE_META, true ) ) ? __( 'FAQ', 'adam-bot' ) : __( 'Conhecimento', 'adam-bot' ) );
+		} elseif ( 'adam_language' === $column ) {
+			echo esc_html( 'en' === EntrySchema::sanitizeLanguage( get_post_meta( $post_id, EntrySchema::LANGUAGE_META, true ) ) ? 'EN' : 'PT' );
+		} elseif ( 'adam_source' === $column ) {
+			$source = EntrySchema::sanitizeSource( get_post_meta( $post_id, EntrySchema::SOURCE_META, true ) );
+			$labels = $this->sourceLabels();
+			echo esc_html( $labels[ $source ] ?? $source );
 		} elseif ( 'adam_status' === $column ) {
-			$hidden = 'hidden' === (string) get_post_meta( $post_id, EntrySchema::VISIBILITY_META, true );
-			echo esc_html( $hidden ? __( 'Oculto', 'adam-bot' ) : ( 'publish' === get_post_status( $post_id ) ? __( 'Publicado', 'adam-bot' ) : __( 'Rascunho', 'adam-bot' ) ) );
+			$source = EntrySchema::sanitizeSource( get_post_meta( $post_id, EntrySchema::SOURCE_META, true ) );
+			echo esc_html( 'website' === $source ? $this->syncStatusLabel( (string) get_post_meta( $post_id, EntrySchema::SYNC_STATUS_META, true ) ) : ( 'hidden' === (string) get_post_meta( $post_id, EntrySchema::VISIBILITY_META, true ) ? __( 'Desativado', 'adam-bot' ) : __( 'Editável', 'adam-bot' ) ) );
+		} elseif ( 'adam_updated' === $column ) {
+			$post = get_post( $post_id );
+			echo esc_html( is_object( $post ) ? (string) ( $post->post_modified ?? '—' ) : '—' );
+		} elseif ( 'adam_indexed' === $column ) {
+			echo esc_html( (string) ( get_post_meta( $post_id, EntrySchema::LAST_INDEXED_META, true ) ?: '—' ) );
 		} elseif ( 'adam_priority' === $column ) {
 			$priority = get_post_meta( $post_id, EntrySchema::PRIORITY_META, true );
 			$weight   = get_post_meta( $post_id, EntrySchema::SEARCH_WEIGHT_META, true );
-			echo esc_html( ( '' === (string) $priority ? '50' : (string) $priority ) . ' / ' . ( '' === (string) $weight ? '100' : (string) $weight ) );
+			echo esc_html( '' === (string) $priority ? '50' : (string) $priority );
 			echo '<span class="adam-bot-quick-data" hidden data-priority="' . esc_attr( '' === (string) $priority ? '50' : (string) $priority ) . '" data-weight="' . esc_attr( '' === (string) $weight ? '100' : (string) $weight ) . '" data-visibility="' . esc_attr( (string) ( get_post_meta( $post_id, EntrySchema::VISIBILITY_META, true ) ?: 'published' ) ) . '"></span>';
-		} elseif ( 'adam_order' === $column ) {
-			$post = get_post( $post_id );
-			echo '<button type="button" class="button-link adam-bot-order-handle" aria-label="' . esc_attr__( 'Reordenar entrada. Use as setas para mover.', 'adam-bot' ) . '"><span class="dashicons dashicons-move" aria-hidden="true"></span> ' . esc_html( is_object( $post ) ? (string) ( $post->menu_order ?? 0 ) : '0' ) . '</button>';
 		}
 	}
 
@@ -556,12 +644,14 @@ final class KnowledgeAdmin {
 		update_post_meta( $post_id, EntrySchema::SEARCH_WEIGHT_META, max( 0, min( 200, absint( $_POST['adam_bot_quick_weight'] ?? 100 ) ) ) );
 		update_post_meta( $post_id, EntrySchema::VISIBILITY_META, $visibility );
 		update_post_meta( $post_id, EntrySchema::ENABLED_META, 'hidden' === $visibility ? '0' : '1' );
+		$this->markModified( $post_id );
 		$this->settings->bumpCacheVersion();
 	}
 
 	/** @param array<string,string> $columns Sortable columns. @return array<string,string> */
 	public function sortable_columns( array $columns ): array {
-		$columns['adam_order'] = 'menu_order';
+		$columns['adam_updated'] = 'modified';
+		$columns['adam_priority'] = 'adam_priority';
 		return $columns;
 	}
 
@@ -619,6 +709,11 @@ final class KnowledgeAdmin {
 				foreach ( array_merge( EntrySchema::revisionMetaKeys(), array( EntrySchema::ENABLED_META, EntrySchema::LEGACY_CATEGORY_META ) ) as $meta_key ) {
 					update_post_meta( (int) $new_id, $meta_key, get_post_meta( $post_id, $meta_key, true ) );
 				}
+				update_post_meta( (int) $new_id, EntrySchema::SOURCE_META, 'manual' );
+				update_post_meta( (int) $new_id, EntrySchema::GENERATED_META, '0' );
+				update_post_meta( (int) $new_id, EntrySchema::SYNC_STATUS_META, 'modified' );
+				delete_post_meta( (int) $new_id, EntrySchema::SOURCE_KEY_META );
+				delete_post_meta( (int) $new_id, EntrySchema::PENDING_SNAPSHOT_META );
 				if ( function_exists( 'wp_get_object_terms' ) && function_exists( 'wp_set_object_terms' ) ) {
 					$term_ids = wp_get_object_terms( $post_id, EntrySchema::TAXONOMY, array( 'fields' => 'ids' ) );
 					if ( is_array( $term_ids ) ) { wp_set_object_terms( (int) $new_id, array_map( 'intval', $term_ids ), EntrySchema::TAXONOMY ); }
@@ -632,6 +727,7 @@ final class KnowledgeAdmin {
 				update_post_meta( $post_id, EntrySchema::ENABLED_META, 'hidden' === $visibility ? '0' : '1' );
 			}
 			$count++;
+			if ( 'adam_bot_duplicate' !== $action ) { $this->markModified( $post_id ); }
 		}
 		$this->settings->bumpCacheVersion();
 		return add_query_arg( array( 'adam_bot_bulk_updated' => $count ), $redirect );
@@ -656,6 +752,16 @@ final class KnowledgeAdmin {
 		if ( ! in_array( $post_type, array( FAQSource::POST_TYPE, ManualSource::POST_TYPE ), true ) ) {
 			return;
 		}
+		$selected_type = sanitize_key( wp_unslash( (string) ( $_GET['adam_entry_type'] ?? '' ) ) );
+		$selected_source = sanitize_key( wp_unslash( (string) ( $_GET['adam_source'] ?? '' ) ) );
+		$selected_language = sanitize_key( wp_unslash( (string) ( $_GET['adam_language'] ?? '' ) ) );
+		$selected_sync = sanitize_key( wp_unslash( (string) ( $_GET['adam_sync_status'] ?? '' ) ) );
+		echo '<label class="screen-reader-text" for="adam-entry-type-filter">' . esc_html__( 'Filtrar por tipo', 'adam-bot' ) . '</label><select id="adam-entry-type-filter" name="adam_entry_type"><option value="">' . esc_html__( 'Todos os tipos', 'adam-bot' ) . '</option><option value="knowledge" ' . selected( $selected_type, 'knowledge', false ) . '>' . esc_html__( 'Conhecimento', 'adam-bot' ) . '</option><option value="faq" ' . selected( $selected_type, 'faq', false ) . '>FAQ</option></select>';
+		echo '<label class="screen-reader-text" for="adam-source-filter">' . esc_html__( 'Filtrar por origem', 'adam-bot' ) . '</label><select id="adam-source-filter" name="adam_source"><option value="">' . esc_html__( 'Todas as origens', 'adam-bot' ) . '</option>';
+		foreach ( $this->sourceLabels() as $value => $label ) { echo '<option value="' . esc_attr( $value ) . '" ' . selected( $selected_source, $value, false ) . '>' . esc_html( $label ) . '</option>'; }
+		echo '</select>';
+		echo '<label class="screen-reader-text" for="adam-language-filter">' . esc_html__( 'Filtrar por idioma', 'adam-bot' ) . '</label><select id="adam-language-filter" name="adam_language"><option value="">' . esc_html__( 'Todos os idiomas', 'adam-bot' ) . '</option><option value="pt" ' . selected( $selected_language, 'pt', false ) . '>Português</option><option value="en" ' . selected( $selected_language, 'en', false ) . '>Inglês</option></select>';
+		echo '<label class="screen-reader-text" for="adam-sync-filter">' . esc_html__( 'Filtrar por estado', 'adam-bot' ) . '</label><select id="adam-sync-filter" name="adam_sync_status"><option value="">' . esc_html__( 'Todos os estados', 'adam-bot' ) . '</option><option value="synced" ' . selected( $selected_sync, 'synced', false ) . '>' . esc_html__( 'Sincronizado', 'adam-bot' ) . '</option><option value="modified" ' . selected( $selected_sync, 'modified', false ) . '>' . esc_html__( 'Modificado', 'adam-bot' ) . '</option><option value="out_of_date" ' . selected( $selected_sync, 'out_of_date', false ) . '>' . esc_html__( 'Desatualizado', 'adam-bot' ) . '</option><option value="editing" ' . selected( $selected_sync, 'editing', false ) . '>' . esc_html__( 'Em edição', 'adam-bot' ) . '</option></select>';
 		$url = admin_url( 'admin.php?page=adam-bot-settings#adam-bot-import-export' );
 		$categories_url = admin_url( 'edit-tags.php?taxonomy=' . EntrySchema::TAXONOMY . '&post_type=' . $post_type );
 		echo '<a class="button" href="' . esc_url( $categories_url ) . '">' . esc_html__( 'Gerir categorias', 'adam-bot' ) . '</a> ';
@@ -669,6 +775,32 @@ final class KnowledgeAdmin {
 			echo ' <label class="screen-reader-text" for="adam-bot-saved-search">' . esc_html__( 'Pesquisas guardadas', 'adam-bot' ) . '</label><select id="adam-bot-saved-search" onchange="if(this.value){window.location.href=this.value;}"><option value="">' . esc_html__( 'Pesquisas guardadas', 'adam-bot' ) . '</option>';
 			foreach ( $saved as $item ) { if ( is_array( $item ) && $post_type === ( $item['post_type'] ?? '' ) ) { echo '<option value="' . esc_url( (string) ( $item['url'] ?? '' ) ) . '">' . esc_html( (string) ( $item['label'] ?? '' ) ) . '</option>'; } }
 			echo '</select>';
+		}
+	}
+
+	/** Applies the unified Knowledge list filters without affecting frontend queries. */
+	public function apply_list_filters( $query ): void {
+		if ( ! is_admin() || ! is_object( $query ) || ! method_exists( $query, 'is_main_query' ) || ! $query->is_main_query() || ManualSource::POST_TYPE !== $query->get( 'post_type' ) ) { return; }
+		$meta_query = $query->get( 'meta_query' );
+		$meta_query = is_array( $meta_query ) ? $meta_query : array();
+		$filters = array(
+			EntrySchema::ENTRY_TYPE_META => sanitize_key( wp_unslash( (string) ( $_GET['adam_entry_type'] ?? '' ) ) ),
+			EntrySchema::SOURCE_META => sanitize_key( wp_unslash( (string) ( $_GET['adam_source'] ?? '' ) ) ),
+			EntrySchema::LANGUAGE_META => sanitize_key( wp_unslash( (string) ( $_GET['adam_language'] ?? '' ) ) ),
+		);
+		foreach ( $filters as $key => $value ) {
+			if ( '' !== $value ) { $meta_query[] = array( 'key' => $key, 'value' => $value ); }
+		}
+		$sync = sanitize_key( wp_unslash( (string) ( $_GET['adam_sync_status'] ?? '' ) ) );
+		if ( 'editing' === $sync ) {
+			$query->set( 'post_status', 'draft' );
+		} elseif ( in_array( $sync, array( 'synced', 'modified', 'out_of_date' ), true ) ) {
+			$meta_query[] = array( 'key' => EntrySchema::SYNC_STATUS_META, 'value' => $sync );
+		}
+		if ( ! empty( $meta_query ) ) { $query->set( 'meta_query', $meta_query ); }
+		if ( 'adam_priority' === $query->get( 'orderby' ) ) {
+			$query->set( 'meta_key', EntrySchema::PRIORITY_META );
+			$query->set( 'orderby', 'meta_value_num' );
 		}
 	}
 
@@ -722,15 +854,11 @@ final class KnowledgeAdmin {
 	/** Renders source selection and page controls inside the main Settings page. */
 	public function render_settings_fields(): void {
 		$settings = $this->settings->all();
-		$pages    = get_pages( array( 'post_status' => 'publish', 'sort_column' => 'menu_order,post_title' ) );
 		$option   = KnowledgeSettings::OPTION_KEY;
 		?>
 		<h2><?php esc_html_e( 'Fornecedores de conhecimento', 'adam-bot' ); ?></h2>
 		<p class="description"><?php esc_html_e( 'Os fornecedores ativos são pesquisados automaticamente. Os fornecedores de outros plugins ADAM aparecem aqui após o registo.', 'adam-bot' ); ?></p>
 		<fieldset><?php foreach ( $this->settings->sources() as $source => $label ) : ?><label class="adam-bot-provider-option"><input type="checkbox" name="<?php echo esc_attr( $option ); ?>[enabled_sources][]" value="<?php echo esc_attr( $source ); ?>" <?php checked( in_array( $source, $settings['enabled_sources'], true ) ); ?> /> <?php echo esc_html( $label ); ?></label><?php endforeach; ?></fieldset>
-		<h3><?php esc_html_e( 'Páginas selecionadas do website', 'adam-bot' ); ?></h3>
-		<p class="description"><?php esc_html_e( 'As páginas publicadas aqui selecionadas tornam-se fontes de conhecimento geridas por administradores.', 'adam-bot' ); ?></p>
-		<div class="adam-bot-page-picker"><?php foreach ( $pages as $page ) : ?><label><input type="checkbox" name="<?php echo esc_attr( $option ); ?>[page_ids][]" value="<?php echo esc_attr( (string) $page->ID ); ?>" <?php checked( in_array( (int) $page->ID, $settings['page_ids'], true ) ); ?> /> <?php echo esc_html( get_the_title( $page ) ); ?></label><?php endforeach; ?></div>
 		<h3><?php esc_html_e( 'Modo de diagnóstico', 'adam-bot' ); ?></h3>
 		<label><input type="checkbox" name="<?php echo esc_attr( $option ); ?>[debug_mode]" value="1" <?php checked( ! empty( $settings['debug_mode'] ) ); ?> /> <?php esc_html_e( 'Mostrar detalhes de pesquisa apenas a administradores autenticados.', 'adam-bot' ); ?></label>
 		<?php
@@ -743,10 +871,10 @@ final class KnowledgeAdmin {
 		?>
 		<div id="adam-bot-import-export">
 			<h2><?php esc_html_e( 'Importar e exportar', 'adam-bot' ); ?></h2>
-			<p><?php esc_html_e( 'Faça uma cópia ou migre todas as entradas da Base de Conhecimento e FAQ, incluindo blocos, pesquisa, relações, estado e ordem.', 'adam-bot' ); ?></p>
+			<p><?php esc_html_e( 'Faça uma cópia ou migre todos os tipos de conhecimento, incluindo FAQ, blocos, pesquisa, relações, proveniência, sincronização, estado e ordem.', 'adam-bot' ); ?></p>
 			<p><a class="button" href="<?php echo esc_url( add_query_arg( 'format', 'json', $export_base ) ); ?>"><?php esc_html_e( 'Exportar JSON', 'adam-bot' ); ?></a> <a class="button" href="<?php echo esc_url( add_query_arg( 'format', 'csv', $export_base ) ); ?>"><?php esc_html_e( 'Exportar CSV', 'adam-bot' ); ?></a></p>
 			<h3><?php esc_html_e( 'Cópia de segurança completa', 'adam-bot' ); ?></h3>
-			<p><?php esc_html_e( 'Inclui Base de Conhecimento, FAQ, analítica, registos de pesquisa anónimos, definições e saúde dos fornecedores.', 'adam-bot' ); ?></p>
+			<p><?php esc_html_e( 'Inclui toda a Base de Conhecimento, analítica, registos de pesquisa anónimos, definições e saúde dos fornecedores.', 'adam-bot' ); ?></p>
 			<p><a class="button" href="<?php echo esc_url( add_query_arg( 'format', 'json', $backup_base ) ); ?>"><?php esc_html_e( 'Exportar cópia JSON', 'adam-bot' ); ?></a> <a class="button" href="<?php echo esc_url( add_query_arg( 'format', 'csv', $backup_base ) ); ?>"><?php esc_html_e( 'Exportar cópia CSV', 'adam-bot' ); ?></a></p>
 			<form method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="adam_bot_import_knowledge" />
@@ -770,6 +898,124 @@ final class KnowledgeAdmin {
 			echo '<li><a href="' . esc_url( (string) $url ) . '">' . esc_html( (string) $match['question'] ) . '</a><br><strong>' . esc_html( (string) $match['similarity'] ) . '%</strong> ' . esc_html__( 'semelhante', 'adam-bot' ) . '</li>';
 		}
 		echo '</ul>';
+	}
+
+	/** Marks a website record as editor-modified when its native post fields change. */
+	public function track_post_edit( int $post_id, $post_after, $post_before ): void {
+		if ( $this->syncing || ! is_object( $post_after ) || ManualSource::POST_TYPE !== (string) $post_after->post_type || wp_is_post_revision( $post_id ) ) { return; }
+		if ( (string) ( $post_after->post_title ?? '' ) !== (string) ( $post_before->post_title ?? '' ) || (string) ( $post_after->post_content ?? '' ) !== (string) ( $post_before->post_content ?? '' ) || (string) ( $post_after->post_status ?? '' ) !== (string) ( $post_before->post_status ?? '' ) ) {
+			$this->markModified( $post_id );
+		}
+	}
+
+	/** Marks category changes while ignoring indexer-owned writes. */
+	public function track_term_edit( int $object_id, $terms, array $tt_ids, string $taxonomy, bool $append, array $old_tt_ids ): void {
+		unset( $terms, $tt_ids, $append, $old_tt_ids );
+		if ( ! $this->syncing && EntrySchema::TAXONOMY === $taxonomy && ManualSource::POST_TYPE === get_post_type( $object_id ) ) {
+			$this->markModified( $object_id );
+		}
+	}
+
+	/** Shows a discoverable queue notice without altering any record. */
+	public function render_sync_notice(): void {
+		if ( ! current_user_can( 'manage_options' ) ) { return; }
+		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+		if ( ! is_object( $screen ) || ! in_array( (string) ( $screen->id ?? '' ), array( 'edit-' . ManualSource::POST_TYPE, ManualSource::POST_TYPE, 'toplevel_page_adam-bot' ), true ) ) { return; }
+		$ids = get_posts( array( 'post_type' => ManualSource::POST_TYPE, 'post_status' => array( 'publish', 'draft', 'private' ), 'posts_per_page' => 101, 'fields' => 'ids', 'meta_key' => EntrySchema::SYNC_STATUS_META, 'meta_value' => 'out_of_date', 'no_found_rows' => true ) );
+		$count = is_array( $ids ) ? count( $ids ) : 0;
+		if ( 0 === $count ) { return; }
+		$url = add_query_arg( array( 'post_type' => ManualSource::POST_TYPE, 'adam_sync_status' => 'out_of_date' ), admin_url( 'edit.php' ) );
+		echo '<div class="notice notice-warning"><p>' . esc_html( sprintf( _n( '%d entrada de conhecimento está desatualizada.', '%d entradas de conhecimento estão desatualizadas.', $count, 'adam-bot' ), $count ) ) . ' <a href="' . esc_url( $url ) . '">' . esc_html__( 'Rever alterações', 'adam-bot' ) . '</a></p></div>';
+	}
+
+	private function markModified( int $post_id ): void {
+		if ( $this->syncing || 'website' !== EntrySchema::sanitizeSource( get_post_meta( $post_id, EntrySchema::SOURCE_META, true ) ) ) { return; }
+		$current = (string) get_post_meta( $post_id, EntrySchema::SYNC_STATUS_META, true );
+		if ( 'out_of_date' !== $current ) {
+			update_post_meta( $post_id, EntrySchema::SYNC_STATUS_META, 'modified' );
+		}
+	}
+
+	/** @return array<string,string> */
+	private function sourceLabels(): array {
+		return array(
+			'manual' => __( 'Manual', 'adam-bot' ), 'website' => __( 'Website', 'adam-bot' ), 'faq_import' => __( 'Importação FAQ', 'adam-bot' ),
+			'events' => __( 'Eventos', 'adam-bot' ), 'partners' => __( 'Parceiros', 'adam-bot' ), 'teams' => __( 'Equipas', 'adam-bot' ),
+		);
+	}
+
+	private function syncStatusLabel( string $status ): string {
+		$labels = array( 'synced' => __( 'Sincronizado', 'adam-bot' ), 'modified' => __( 'Modificado', 'adam-bot' ), 'out_of_date' => __( 'Desatualizado', 'adam-bot' ) );
+		return $labels[ EntrySchema::sanitizeSyncStatus( $status ) ];
+	}
+
+	/** @return array<string,mixed> */
+	private function currentSnapshot( int $post_id ): array {
+		$post = get_post( $post_id );
+		$terms = get_the_terms( $post_id, EntrySchema::TAXONOMY );
+		$categories = is_array( $terms ) ? array_map( static function ( $term ): string { return sanitize_text_field( (string) $term->name ); }, $terms ) : array();
+		return array(
+			'title' => is_object( $post ) ? (string) $post->post_title : '',
+			'question' => (string) get_post_meta( $post_id, EntrySchema::QUESTION_META, true ),
+			'answer' => is_object( $post ) ? trim( wp_strip_all_tags( (string) $post->post_content ) ) : '',
+			'keywords' => EntrySchema::sanitizeTerms( get_post_meta( $post_id, EntrySchema::KEYWORDS_META, true ) ),
+			'category' => implode( ', ', $categories ),
+			'related_page' => absint( get_post_meta( $post_id, EntrySchema::RELATED_PAGE_META, true ) ),
+			'button_text' => (string) get_post_meta( $post_id, EntrySchema::BUTTON_TEXT_META, true ),
+			'button_url' => (string) get_post_meta( $post_id, EntrySchema::BUTTON_URL_META, true ),
+			'language' => EntrySchema::sanitizeLanguage( get_post_meta( $post_id, EntrySchema::LANGUAGE_META, true ) ),
+			'type' => EntrySchema::sanitizeType( get_post_meta( $post_id, EntrySchema::ENTRY_TYPE_META, true ) ),
+		);
+	}
+
+	/** @param mixed $value @return array<string,mixed> */
+	private function snapshot( $value ): array {
+		if ( ! is_array( $value ) ) { return array(); }
+		return array(
+			'title' => sanitize_text_field( (string) ( $value['title'] ?? '' ) ), 'question' => sanitize_text_field( (string) ( $value['question'] ?? '' ) ),
+			'answer' => sanitize_textarea_field( (string) ( $value['answer'] ?? '' ) ), 'keywords' => EntrySchema::sanitizeTerms( $value['keywords'] ?? array() ),
+			'category' => sanitize_text_field( (string) ( $value['category'] ?? '' ) ), 'related_page' => absint( $value['related_page'] ?? 0 ),
+			'button_text' => sanitize_text_field( (string) ( $value['button_text'] ?? '' ) ), 'button_url' => esc_url_raw( (string) ( $value['button_url'] ?? '' ) ),
+			'language' => EntrySchema::sanitizeLanguage( $value['language'] ?? 'pt' ), 'type' => EntrySchema::sanitizeType( $value['type'] ?? 'knowledge' ),
+			'source_hash' => sanitize_text_field( (string) ( $value['source_hash'] ?? '' ) ), 'deleted' => ! empty( $value['deleted'] ),
+		);
+	}
+
+	/** @param array<string,mixed> $snapshot */
+	private function applySnapshot( int $post_id, array $snapshot ): void {
+		wp_update_post( array( 'ID' => $post_id, 'post_title' => (string) $snapshot['title'], 'post_content' => wp_kses_post( wpautop( (string) $snapshot['answer'] ) ) ) );
+		update_post_meta( $post_id, EntrySchema::QUESTION_META, $snapshot['question'] );
+		update_post_meta( $post_id, EntrySchema::KEYWORDS_META, $snapshot['keywords'] );
+		update_post_meta( $post_id, EntrySchema::RELATED_PAGE_META, $snapshot['related_page'] );
+		update_post_meta( $post_id, EntrySchema::BUTTON_TEXT_META, $snapshot['button_text'] );
+		update_post_meta( $post_id, EntrySchema::BUTTON_URL_META, $snapshot['button_url'] );
+		update_post_meta( $post_id, EntrySchema::LANGUAGE_META, $snapshot['language'] );
+		update_post_meta( $post_id, EntrySchema::ENTRY_TYPE_META, $snapshot['type'] );
+		wp_set_object_terms( $post_id, array( $snapshot['category'] ), EntrySchema::TAXONOMY );
+	}
+
+	private function authorizeSyncAction(): int {
+		$post_id = absint( $_GET['post_id'] ?? 0 );
+		if ( $post_id <= 0 || ! current_user_can( 'edit_post', $post_id ) || ManualSource::POST_TYPE !== get_post_type( $post_id ) ) {
+			wp_die( esc_html__( 'Não tem permissão para sincronizar esta entrada.', 'adam-bot' ) );
+		}
+		check_admin_referer( 'adam_bot_sync_entry_' . $post_id );
+		return $post_id;
+	}
+
+	private function redirectToEntry( int $post_id ): void {
+		wp_safe_redirect( add_query_arg( 'adam_bot_synced', '1', get_edit_post_link( $post_id, 'url' ) ) );
+		exit;
+	}
+
+	/** @param mixed $value */
+	private function snapshotValue( $value ): string {
+		return is_array( $value ) ? implode( ', ', array_map( 'strval', $value ) ) : (string) $value;
+	}
+
+	private function excerpt( string $value ): string {
+		$value = trim( preg_replace( '/\s+/u', ' ', $value ) ?? $value );
+		return function_exists( 'mb_substr' ) && mb_strlen( $value ) > 220 ? mb_substr( $value, 0, 219 ) . '…' : ( strlen( $value ) > 220 ? substr( $value, 0, 219 ) . '…' : $value );
 	}
 
 	private function authorize_ajax(): void {

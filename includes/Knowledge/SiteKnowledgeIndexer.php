@@ -83,15 +83,13 @@ final class SiteKnowledgeIndexer {
 			$needs_generated_english = 'pt' === $language && 0 === $this->englishTranslationId( $post );
 			foreach ( $sections as $index => $section ) {
 				$payload = $this->payload( $post, $section, $language, (int) $index );
-				foreach ( array( ManualSource::POST_TYPE, FAQSource::POST_TYPE ) as $post_type ) {
-					$id = $this->upsert( $post_type, $payload, $explicit );
-					if ( $id > 0 ) {
-						$seen[] = (string) $payload['source_key'] . '|' . $post_type;
-						if ( $needs_generated_english ) {
-							$seen[] = ( preg_replace( '/:pt$/', ':en', (string) $payload['source_key'] ) ?: (string) $payload['source_key'] . ':en' ) . '|' . $post_type;
-						}
-						$counts[ ManualSource::POST_TYPE === $post_type ? 'knowledge' : 'faq' ]++;
+				$id = $this->upsert( $payload );
+				if ( $id > 0 ) {
+					$seen[] = (string) $payload['source_key'];
+					if ( $needs_generated_english ) {
+						$seen[] = preg_replace( '/:pt$/', ':en', (string) $payload['source_key'] ) ?: (string) $payload['source_key'] . ':en';
 					}
+					$counts[ 'faq' === (string) $payload['type'] ? 'faq' : 'knowledge' ]++;
 				}
 
 				if ( $needs_generated_english ) {
@@ -101,7 +99,7 @@ final class SiteKnowledgeIndexer {
 		}
 
 		if ( $explicit ) {
-			$this->hideStaleGeneratedEntries( $seen );
+			$this->markMissingOutOfDate( $seen );
 		}
 
 		update_option( self::QUEUE_OPTION, array_values( $queue ), false );
@@ -147,8 +145,7 @@ final class SiteKnowledgeIndexer {
 			$payload = $this->payload( $post, $section, 'pt', $section_index );
 			$english = $this->translatePayload( $payload );
 			if ( is_array( $english ) ) {
-				$this->upsert( ManualSource::POST_TYPE, $english, true );
-				$this->upsert( FAQSource::POST_TYPE, $english, true );
+				$this->upsert( $english );
 			} else {
 				$attempts = 1 + absint( $item['attempts'] ?? 0 );
 				if ( $attempts < 3 ) {
@@ -182,7 +179,7 @@ final class SiteKnowledgeIndexer {
 		$status = is_array( $status ) ? $status : array();
 		?>
 		<h2><?php esc_html_e( 'Indexação automática do website', 'adam-bot' ); ?></h2>
-		<p><?php esc_html_e( 'As páginas e notícias públicas são convertidas em entradas de conhecimento e FAQ editáveis. A indexação inicial ocorre uma vez; alterações manuais são preservadas até escolher reconstruir.', 'adam-bot' ); ?></p>
+		<p><?php esc_html_e( 'As páginas e notícias públicas são convertidas em registos normais e editáveis da Base de Conhecimento. A FAQ é um tipo de conhecimento. A indexação nunca substitui alterações do administrador.', 'adam-bot' ); ?></p>
 		<?php if ( ! empty( $status['indexed_at'] ) ) : ?>
 			<p><strong><?php esc_html_e( 'Última indexação:', 'adam-bot' ); ?></strong> <?php echo esc_html( (string) $status['indexed_at'] ); ?> — <?php echo esc_html( sprintf( __( '%1$d fontes, %2$d entradas de conhecimento e %3$d FAQ.', 'adam-bot' ), (int) ( $status['sources'] ?? 0 ), (int) ( $status['knowledge'] ?? 0 ), (int) ( $status['faq'] ?? 0 ) ) ); ?></p>
 		<?php endif; ?>
@@ -195,7 +192,7 @@ final class SiteKnowledgeIndexer {
 		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 			<input type="hidden" name="action" value="adam_bot_rebuild_site_knowledge" />
 			<?php wp_nonce_field( self::NONCE_ACTION ); ?>
-			<?php submit_button( __( 'Reconstruir a base de conhecimento', 'adam-bot' ), 'secondary', 'submit', false, array( 'onclick' => "return confirm('" . esc_js( __( 'A reconstrução atualiza as entradas geradas a partir do conteúdo público atual. As entradas criadas manualmente não são alteradas. Continuar?', 'adam-bot' ) ) . "');" ) ); ?>
+			<?php submit_button( __( 'Reconstruir a base de conhecimento', 'adam-bot' ), 'secondary', 'submit', false, array( 'onclick' => "return confirm('" . esc_js( __( 'A reconstrução deteta alterações no website e marca as entradas desatualizadas. Nenhuma edição do administrador será substituída. Continuar?', 'adam-bot' ) ) . "');" ) ); ?>
 		</form>
 		<p class="description"><?php esc_html_e( 'A tradução usa primeiro páginas inglesas existentes. Quando não existem, o texto público é traduzido em segundo plano e guardado como uma entrada inglesa independente e editável.', 'adam-bot' ); ?></p>
 		<?php
@@ -204,7 +201,7 @@ final class SiteKnowledgeIndexer {
 	/** @return array<int,object> */
 	private function publicPosts(): array {
 		$post_types = function_exists( 'get_post_types' ) ? get_post_types( array( 'public' => true ), 'names' ) : array( 'page', 'post' );
-		$post_types = is_array( $post_types ) ? array_values( array_diff( $post_types, array( 'attachment', ManualSource::POST_TYPE, FAQSource::POST_TYPE ) ) ) : array( 'page', 'post' );
+		$post_types = is_array( $post_types ) ? array_values( array_diff( $post_types, array( 'attachment', ManualSource::POST_TYPE, FAQSource::LEGACY_POST_TYPE ) ) ) : array( 'page', 'post' );
 		$post_types = apply_filters( 'adam_bot_site_index_post_types', $post_types );
 		$posts      = get_posts( array( 'post_type' => $post_types, 'post_status' => 'publish', 'posts_per_page' => -1, 'orderby' => 'ID', 'order' => 'ASC', 'no_found_rows' => true, 'suppress_filters' => false, 'lang' => '' ) );
 		return array_values(
@@ -332,6 +329,7 @@ final class SiteKnowledgeIndexer {
 		$heading_key = sanitize_key( (string) ( $section['key'] ?? '' ) );
 		$heading_key = '' !== $heading_key ? $heading_key : substr( hash( 'sha256', strtolower( $heading ) ), 0, 16 );
 		$source_key  = (int) $post->ID . ':' . $heading_key . ':' . $language;
+		$type        = false !== strpos( $heading, '?' ) || 1 === preg_match( '/faq|perguntas-frequentes/i', $slug ) ? 'faq' : 'knowledge';
 		return array(
 			'title'       => $entry_title,
 			'question'    => $question,
@@ -345,29 +343,54 @@ final class SiteKnowledgeIndexer {
 			'source_post' => (int) $post->ID,
 			'source_key'  => $source_key,
 			'source_hash' => hash( 'sha256', $entry_title . '|' . $question . '|' . $section['answer'] ),
+			'type'         => $type,
 		);
 	}
 
-	/** @param array<string,mixed> $payload */
-	private function upsert( string $post_type, array $payload, bool $allow_update ): int {
+	/** Creates a normal Knowledge record or stores a non-destructive website proposal. @param array<string,mixed> $payload */
+	private function upsert( array $payload ): int {
 		$source_key = (string) $payload['source_key'];
-		$existing   = get_posts( array( 'post_type' => $post_type, 'post_status' => array( 'publish', 'draft', 'private' ), 'posts_per_page' => 1, 'meta_key' => EntrySchema::SOURCE_KEY_META, 'meta_value' => $source_key, 'no_found_rows' => true ) );
+		$existing   = get_posts(
+			array(
+				'post_type'      => ManualSource::POST_TYPE,
+				'post_status'    => array( 'publish', 'draft', 'private' ),
+				'posts_per_page' => 1,
+				'meta_query'     => array(
+					array( 'key' => EntrySchema::SOURCE_KEY_META, 'value' => $source_key ),
+					array( 'key' => EntrySchema::SOURCE_META, 'value' => 'website' ),
+				),
+				'no_found_rows'  => true,
+			)
+		);
 		$current    = is_array( $existing ) && isset( $existing[0] ) ? $existing[0] : null;
-		if ( is_object( $current ) && ! $allow_update ) {
+		$now        = gmdate( 'c' );
+		$snapshot   = $this->payloadSnapshot( $payload );
+		if ( is_object( $current ) ) {
+			$post_id = (int) $current->ID;
+			update_post_meta( $post_id, EntrySchema::LAST_INDEXED_META, $now );
+			$accepted_hash = (string) get_post_meta( $post_id, EntrySchema::SOURCE_HASH_META, true );
+			if ( '' === $accepted_hash ) {
+				$accepted_hash = (string) $payload['source_hash'];
+				update_post_meta( $post_id, EntrySchema::SOURCE_HASH_META, $accepted_hash );
+				update_post_meta( $post_id, EntrySchema::SYNC_SNAPSHOT_META, $snapshot );
+			}
+			if ( hash_equals( $accepted_hash, (string) $payload['source_hash'] ) ) {
+				if ( '' === (string) get_post_meta( $post_id, EntrySchema::SYNC_STATUS_META, true ) ) {
+					update_post_meta( $post_id, EntrySchema::SYNC_STATUS_META, 'synced' );
+				}
+				return $post_id;
+			}
+			update_post_meta( $post_id, EntrySchema::PENDING_SNAPSHOT_META, $snapshot );
+			update_post_meta( $post_id, EntrySchema::SYNC_STATUS_META, 'out_of_date' );
 			return (int) $current->ID;
 		}
 		$postarr = array(
-			'post_type'    => $post_type,
+			'post_type'    => ManualSource::POST_TYPE,
 			'post_status'  => 'publish',
 			'post_title'   => sanitize_text_field( (string) $payload['title'] ),
 			'post_content' => wp_kses_post( wpautop( (string) $payload['answer'] ) ),
 		);
-		if ( is_object( $current ) ) {
-			$postarr['ID'] = (int) $current->ID;
-			$post_id = wp_update_post( $postarr, true );
-		} else {
-			$post_id = wp_insert_post( $postarr, true );
-		}
+		$post_id = wp_insert_post( $postarr, true );
 		if ( is_wp_error( $post_id ) || (int) $post_id <= 0 ) {
 			return 0;
 		}
@@ -387,25 +410,47 @@ final class SiteKnowledgeIndexer {
 			EntrySchema::SOURCE_POST_META   => (int) $payload['source_post'],
 			EntrySchema::SOURCE_KEY_META    => sanitize_text_field( $source_key ),
 			EntrySchema::SOURCE_HASH_META   => sanitize_text_field( (string) $payload['source_hash'] ),
+			EntrySchema::ENTRY_TYPE_META    => EntrySchema::sanitizeType( $payload['type'] ?? 'knowledge' ),
+			EntrySchema::SOURCE_META        => 'website',
+			EntrySchema::LAST_INDEXED_META  => $now,
+			EntrySchema::LAST_SYNCED_META   => $now,
+			EntrySchema::SYNC_STATUS_META   => 'synced',
+			EntrySchema::SYNC_SNAPSHOT_META => $snapshot,
 		);
+		wp_set_object_terms( (int) $post_id, array( sanitize_text_field( (string) $payload['category'] ) ), EntrySchema::TAXONOMY );
 		foreach ( $meta as $key => $value ) {
 			update_post_meta( (int) $post_id, $key, $value );
 		}
-		wp_set_object_terms( (int) $post_id, array( sanitize_text_field( (string) $payload['category'] ) ), EntrySchema::TAXONOMY );
 		return (int) $post_id;
 	}
 
 	/** @param array<int,string> $seen */
-	private function hideStaleGeneratedEntries( array $seen ): void {
-		$posts = get_posts( array( 'post_type' => array( ManualSource::POST_TYPE, FAQSource::POST_TYPE ), 'post_status' => array( 'publish', 'draft', 'private' ), 'posts_per_page' => -1, 'meta_key' => EntrySchema::GENERATED_META, 'meta_value' => '1', 'no_found_rows' => true ) );
+	private function markMissingOutOfDate( array $seen ): void {
+		$posts = get_posts( array( 'post_type' => ManualSource::POST_TYPE, 'post_status' => array( 'publish', 'draft', 'private' ), 'posts_per_page' => -1, 'meta_key' => EntrySchema::SOURCE_META, 'meta_value' => 'website', 'no_found_rows' => true ) );
 		foreach ( is_array( $posts ) ? $posts : array() as $post ) {
-			$key = (string) get_post_meta( $post->ID, EntrySchema::SOURCE_KEY_META, true ) . '|' . (string) $post->post_type;
+			$key = (string) get_post_meta( $post->ID, EntrySchema::SOURCE_KEY_META, true );
 			if ( ! in_array( $key, $seen, true ) ) {
-				wp_update_post( array( 'ID' => (int) $post->ID, 'post_status' => 'draft' ) );
-				update_post_meta( (int) $post->ID, EntrySchema::VISIBILITY_META, 'hidden' );
-				update_post_meta( (int) $post->ID, EntrySchema::ENABLED_META, '0' );
+				$deleted_hash = hash( 'sha256', 'deleted|' . $key );
+				update_post_meta( (int) $post->ID, EntrySchema::LAST_INDEXED_META, gmdate( 'c' ) );
+				if ( hash_equals( (string) get_post_meta( (int) $post->ID, EntrySchema::SOURCE_HASH_META, true ), $deleted_hash ) ) {
+					continue;
+				}
+				update_post_meta( (int) $post->ID, EntrySchema::PENDING_SNAPSHOT_META, array( 'deleted' => true, 'source_hash' => $deleted_hash ) );
+				update_post_meta( (int) $post->ID, EntrySchema::SYNC_STATUS_META, 'out_of_date' );
 			}
 		}
+	}
+
+	/** @param array<string,mixed> $payload @return array<string,mixed> */
+	private function payloadSnapshot( array $payload ): array {
+		return array(
+			'title' => sanitize_text_field( (string) $payload['title'] ), 'question' => sanitize_text_field( (string) $payload['question'] ),
+			'answer' => sanitize_textarea_field( (string) $payload['answer'] ), 'keywords' => EntrySchema::sanitizeTerms( $payload['keywords'] ),
+			'category' => sanitize_text_field( (string) $payload['category'] ), 'related_page' => absint( $payload['related_page'] ),
+			'button_text' => sanitize_text_field( (string) $payload['button_text'] ), 'button_url' => esc_url_raw( (string) $payload['button_url'] ),
+			'language' => EntrySchema::sanitizeLanguage( $payload['language'] ), 'type' => EntrySchema::sanitizeType( $payload['type'] ?? 'knowledge' ),
+			'source_hash' => sanitize_text_field( (string) $payload['source_hash'] ),
+		);
 	}
 
 	/** @param array<string,mixed> $payload @return array<string,mixed>|null */

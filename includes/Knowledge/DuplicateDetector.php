@@ -31,7 +31,7 @@ final class DuplicateDetector {
 
 		$posts = get_posts(
 			array(
-				'post_type'      => array( 'adam_bot_knowledge', 'adam_bot_faq' ),
+				'post_type'      => 'adam_bot_knowledge',
 				'post_status'    => array( 'publish', 'draft', 'private' ),
 				'posts_per_page' => -1,
 				'orderby'        => 'modified',

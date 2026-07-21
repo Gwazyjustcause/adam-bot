@@ -3,7 +3,7 @@ Contributors: adam
 Tags: chat, assistant, knowledge
 Requires at least: 6.3
 Requires PHP: 7.4
-Stable tag: 1.9.0
+Stable tag: 1.10.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -40,24 +40,25 @@ keyboard ordering, diagnostic search output for administrators, and a complete
 accessibility and mobile pass. The public and administrative interface is in
 European Portuguese.
 
-Version 1.9 indexes public WordPress pages and news once into ordinary, editable
-Knowledge Base and FAQ posts. Portuguese source sections receive persisted English
-variants in the background when no translated page exists. Administrators can
-review every generated field and explicitly rebuild the index from Settings.
+Version 1.10 stores Knowledge and FAQ as two editable types in one Knowledge Base.
+Every generated record is visible and carries its language, source and sync state.
+Website changes create an out-of-date proposal that administrators can compare,
+apply or keep without overwriting their editorial work.
 
 == Installation ==
 
 1. Copy the `adam-bot` directory into `/wp-content/plugins/`.
 2. Activate **ADAM BOT** from the WordPress Plugins screen.
 3. Open **ADAM BOT -> Knowledge Base** to create and organize answers.
-4. Use **ADAM BOT -> FAQ** for frequently asked questions.
+4. Choose **Type: FAQ** in the same editor for frequently asked questions.
 5. Open **ADAM BOT -> Settings** to enable providers, select website pages,
    import/export content, and customize the quick-action cards.
 6. Open any public page and use the ADAM BOT launcher in the bottom-left corner.
 
 == Knowledge Administration ==
 
-Knowledge Base and FAQ entries support unlimited coloured/icon categories,
+Knowledge and FAQ records share one editor, database, list and search system. They
+support unlimited coloured/icon categories,
 published/draft/hidden states, keywords, synonyms, editorial priority, search
 weight, related pages, administrator-authored buttons, and related knowledge.
 The no-code Rich Response Builder supports paragraphs, headings, bullet and
@@ -122,6 +123,15 @@ session storage for recovery and are cleared when the browsing session ends.
 Server analytics contain aggregate counters and scrubbed common-question samples.
 
 == Changelog ==
+
+= 1.10.0 =
+* Unified Knowledge and FAQ into one canonical, fully editable Knowledge Base with a record type field and lossless legacy FAQ migration.
+* Added editable language and source metadata plus source-page, last-indexed, last-synced, and sync-state information.
+* Added Synced, Modified, and Out of date workflows with side-by-side comparisons and explicit update or keep-current actions.
+* Prevented website reindexing from overwriting administrator edits or deleting records whose source sections changed or disappeared.
+* Added unified source, language, type, sync state, category, priority, and editing filters and operational notices.
+* Extended JSON/CSV backup and WordPress revisions to preserve unified records and synchronization metadata.
+* Removed direct selected-page searching so all static website answers now come from normal, administrator-editable Knowledge records.
 
 = 1.9.0 =
 * Added one-time automatic indexing of all published public WordPress pages and news into editable Knowledge Base and FAQ entries.

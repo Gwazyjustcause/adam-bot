@@ -12,7 +12,6 @@ namespace AdamBot\Admin;
 use AdamBot\Analytics\Analytics;
 use AdamBot\Analytics\SearchInsights;
 use AdamBot\Knowledge\KnowledgeAdmin;
-use AdamBot\Knowledge\Sources\FAQSource;
 use AdamBot\Knowledge\Sources\ManualSource;
 use AdamBot\Knowledge\SiteKnowledgeIndexer;
 use AdamBot\UX\ExperienceSettings;
@@ -84,8 +83,7 @@ final class SettingsPage {
 		$this->authorize();
 		$data         = $this->analytics->all();
 		$knowledge    = $this->postCounts( ManualSource::POST_TYPE );
-		$faq          = $this->postCounts( FAQSource::POST_TYPE );
-		$total        = $knowledge['publish'] + $knowledge['draft'] + $faq['publish'] + $faq['draft'];
+		$total        = $knowledge['publish'] + $knowledge['draft'];
 		$common       = $this->analytics->getCommonQuestions( 5 );
 		$providers    = array_slice( $this->analytics->getProviderUsage(), 0, 5, true );
 		$topics       = array_slice( $this->analytics->getIntentUsage(), 0, 5, true );
@@ -106,7 +104,7 @@ final class SettingsPage {
 			<h2><?php esc_html_e( 'Ações rápidas', 'adam-bot' ); ?></h2>
 			<p><a class="button button-primary" href="<?php echo esc_url( admin_url( 'post-new.php?post_type=' . ManualSource::POST_TYPE ) ); ?>"><?php esc_html_e( 'Adicionar conhecimento', 'adam-bot' ); ?></a> <a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=adam-bot-unanswered' ) ); ?>"><?php esc_html_e( 'Rever perguntas sem resposta', 'adam-bot' ); ?></a> <a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=adam-bot-search-analytics' ) ); ?>"><?php esc_html_e( 'Ver analítica', 'adam-bot' ); ?></a> <a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=adam-bot-providers' ) ); ?>"><?php esc_html_e( 'Gerir fornecedores', 'adam-bot' ); ?></a></p>
 
-			<p class="description"><?php echo esc_html( sprintf( __( '%1$d entradas de conhecimento no total; %2$d publicadas e %3$d em rascunho.', 'adam-bot' ), $total, $knowledge['publish'] + $faq['publish'], $knowledge['draft'] + $faq['draft'] ) ); ?></p>
+			<p class="description"><?php echo esc_html( sprintf( __( '%1$d entradas de conhecimento no total; %2$d publicadas e %3$d em rascunho.', 'adam-bot' ), $total, $knowledge['publish'], $knowledge['draft'] ) ); ?></p>
 
 			<?php if ( ! empty( $common ) ) : ?>
 				<h2><?php esc_html_e( 'Perguntas mais pesquisadas', 'adam-bot' ); ?></h2>

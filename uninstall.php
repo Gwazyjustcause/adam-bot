@@ -21,9 +21,11 @@ delete_option( 'adam_bot_maintenance_status' );
 delete_option( 'adam_bot_saved_searches' );
 delete_option( 'adam_bot_site_index_status' );
 delete_option( 'adam_bot_site_index_translation_queue' );
+delete_option( 'adam_bot_knowledge_schema_version' );
 
 if ( function_exists( 'wp_clear_scheduled_hook' ) ) {
 	wp_clear_scheduled_hook( 'adam_bot_daily_maintenance' );
 	wp_clear_scheduled_hook( 'adam_bot_initial_site_index' );
 	wp_clear_scheduled_hook( 'adam_bot_site_index_translation_batch' );
+	wp_clear_scheduled_hook( 'adam_bot_migrate_legacy_knowledge' );
 }

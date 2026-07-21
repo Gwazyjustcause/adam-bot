@@ -12,7 +12,7 @@ namespace AdamBot\Knowledge;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Owns source enablement, selected pages, and cache versioning.
+ * Owns provider enablement and cache versioning.
  */
 final class KnowledgeSettings {
 	/** WordPress option name. */
@@ -30,8 +30,6 @@ final class KnowledgeSettings {
 		$sources = apply_filters(
 			'adam_bot_knowledge_provider_registry',
 			array(
-				'faq'        => __( 'Perguntas frequentes', 'adam-bot' ),
-				'page'       => __( 'Páginas WordPress selecionadas', 'adam-bot' ),
 				'membership' => __( 'Informação de sócios', 'adam-bot' ),
 				'event'      => __( 'Informação de eventos', 'adam-bot' ),
 				'manual'     => __( 'Entradas manuais de conhecimento', 'adam-bot' ),
@@ -62,7 +60,7 @@ final class KnowledgeSettings {
 		$valid  = array_keys( $this->sources() );
 		$known  = isset( $stored['known_sources'] ) && is_array( $stored['known_sources'] )
 			? array_values( array_intersect( $valid, array_map( 'sanitize_key', $stored['known_sources'] ) ) )
-			: array( 'faq', 'page', 'membership', 'event', 'manual' );
+			: array( 'membership', 'event', 'manual' );
 		$new_sources = array_values( array_diff( $valid, $known ) );
 
 		$values['enabled_sources'] = isset( $values['enabled_sources'] ) && is_array( $values['enabled_sources'] )
@@ -176,6 +174,6 @@ final class KnowledgeSettings {
 
 	/** Returns source identifiers without evaluating any translated labels. */
 	private function sourceKeys(): array {
-		return array( 'faq', 'page', 'membership', 'event', 'manual' );
+		return array( 'membership', 'event', 'manual' );
 	}
 }
