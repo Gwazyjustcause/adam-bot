@@ -1,6 +1,6 @@
 <?php
 /**
- * Optional ADAM Interface integration.
+ * Optional ADAM UI integration.
  *
  * @package AdamBot
  */
@@ -14,13 +14,33 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Opts only ADAM BOT-owned screens into the shared visual framework.
  *
- * ADAM Interface remains optional. BOT keeps its standalone styles and
+ * ADAM UI remains optional. BOT keeps its standalone styles and
  * behavior when the shared plugin is unavailable.
  */
-final class InterfaceIntegration {
+final class UIIntegration {
+	/** @var array<int, string> */
+	private const COMPONENTS = array( 'admin-layout', 'card', 'button', 'forms', 'table', 'notice', 'badge', 'empty-state', 'toolbar', 'search', 'stat-card', 'section-header' );
+
 	/** Registers integration hooks without creating a hard dependency. */
 	public function register_hooks(): void {
+		$this->register_with_ui();
 		add_action( 'admin_enqueue_scripts', array( $this, 'enable_admin_theme' ), 1 );
+	}
+
+	/** Registers ADAM BOT and its minimum ADAM UI version. */
+	private function register_with_ui(): void {
+		if ( function_exists( 'adam_ui_register_plugin' ) ) {
+			adam_ui_register_plugin(
+				'adam-bot',
+				'ADAM BOT',
+				array(
+					'version'     => defined( 'ADAM_BOT_VERSION' ) ? ADAM_BOT_VERSION : '',
+					'requires_ui' => '1.0.0',
+					'components'  => self::COMPONENTS,
+					'plugin_file' => defined( 'ADAM_BOT_FILE' ) ? plugin_basename( ADAM_BOT_FILE ) : '',
+				)
+			);
+		}
 	}
 
 	/**
@@ -33,8 +53,12 @@ final class InterfaceIntegration {
 			return;
 		}
 
-		if ( function_exists( 'adam_interface_enable_admin_theme' ) ) {
-			adam_interface_enable_admin_theme();
+		if ( function_exists( 'adam_ui_enable_admin_theme' ) ) {
+			adam_ui_enable_admin_theme();
+
+			foreach ( self::COMPONENTS as $component ) {
+				adam_ui()->enqueue_component( $component );
+			}
 		}
 	}
 
