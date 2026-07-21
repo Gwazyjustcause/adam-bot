@@ -89,10 +89,12 @@ final class SettingsPage {
 		$topics       = array_slice( $this->analytics->getIntentUsage(), 0, 5, true );
 		$successful   = (int) $data['high_confidence'] + (int) $data['medium_confidence'];
 		?>
-		<div class="wrap">
-			<h1><?php esc_html_e( 'Painel do ADAM BOT', 'adam-bot' ); ?></h1>
-			<p><?php esc_html_e( 'Acompanhe a saúde, a qualidade e o desempenho do assistente num único local.', 'adam-bot' ); ?></p>
-			<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;max-width:1000px;margin:20px 0;">
+		<div class="wrap adam-admin-page">
+			<header class="adam-page-header"><div class="adam-page-header__content">
+			<h1 class="adam-page-title"><?php esc_html_e( 'Painel do ADAM BOT', 'adam-bot' ); ?></h1>
+			<p class="adam-page-description"><?php esc_html_e( 'Acompanhe a saúde, a qualidade e o desempenho do assistente num único local.', 'adam-bot' ); ?></p>
+			</div></header>
+			<div class="adam-stat-grid" style="max-width:1000px;margin:20px 0;">
 				<?php $this->metricCard( __( 'Total de conversas', 'adam-bot' ), (int) $data['total_conversations'] ); ?>
 				<?php $this->metricCard( __( 'Perguntas respondidas', 'adam-bot' ), (int) $data['knowledge_hits'] ); ?>
 				<?php $this->metricCard( __( 'Pesquisas bem-sucedidas', 'adam-bot' ), $successful ); ?>
@@ -102,7 +104,7 @@ final class SettingsPage {
 			</div>
 
 			<h2><?php esc_html_e( 'Ações rápidas', 'adam-bot' ); ?></h2>
-			<p><a class="button button-primary" href="<?php echo esc_url( admin_url( 'post-new.php?post_type=' . ManualSource::POST_TYPE ) ); ?>"><?php esc_html_e( 'Adicionar conhecimento', 'adam-bot' ); ?></a> <a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=adam-bot-unanswered' ) ); ?>"><?php esc_html_e( 'Rever perguntas sem resposta', 'adam-bot' ); ?></a> <a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=adam-bot-search-analytics' ) ); ?>"><?php esc_html_e( 'Ver analítica', 'adam-bot' ); ?></a> <a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=adam-bot-providers' ) ); ?>"><?php esc_html_e( 'Gerir fornecedores', 'adam-bot' ); ?></a></p>
+			<p class="adam-toolbar"><a class="button button-primary adam-button adam-button-primary" href="<?php echo esc_url( admin_url( 'post-new.php?post_type=' . ManualSource::POST_TYPE ) ); ?>"><?php esc_html_e( 'Adicionar conhecimento', 'adam-bot' ); ?></a> <a class="button adam-button adam-button-secondary" href="<?php echo esc_url( admin_url( 'admin.php?page=adam-bot-unanswered' ) ); ?>"><?php esc_html_e( 'Rever perguntas sem resposta', 'adam-bot' ); ?></a> <a class="button adam-button adam-button-secondary" href="<?php echo esc_url( admin_url( 'admin.php?page=adam-bot-search-analytics' ) ); ?>"><?php esc_html_e( 'Ver analítica', 'adam-bot' ); ?></a> <a class="button adam-button adam-button-secondary" href="<?php echo esc_url( admin_url( 'admin.php?page=adam-bot-providers' ) ); ?>"><?php esc_html_e( 'Gerir fornecedores', 'adam-bot' ); ?></a></p>
 
 			<p class="description"><?php echo esc_html( sprintf( __( '%1$d entradas de conhecimento no total; %2$d publicadas e %3$d em rascunho.', 'adam-bot' ), $total, $knowledge['publish'], $knowledge['draft'] ) ); ?></p>
 
@@ -125,10 +127,10 @@ final class SettingsPage {
 		$this->authorize();
 		$data = $this->analytics->all();
 		?>
-		<div class="wrap">
-			<h1><?php esc_html_e( 'Analítica de conversas', 'adam-bot' ); ?></h1>
-			<div class="notice notice-info inline"><p><strong><?php esc_html_e( 'Privacidade desde a conceção:', 'adam-bot' ); ?></strong> <?php esc_html_e( 'O ADAM BOT não guarda identidades de visitantes nem transcrições. Este ecrã apresenta apenas atividade agregada e anónima.', 'adam-bot' ); ?></p></div>
-			<table class="widefat striped" style="max-width:760px;margin-top:18px;"><tbody>
+		<div class="wrap adam-admin-page">
+			<header class="adam-page-header"><div class="adam-page-header__content"><h1 class="adam-page-title"><?php esc_html_e( 'Analítica de conversas', 'adam-bot' ); ?></h1></div></header>
+			<div class="notice notice-info inline adam-alert adam-alert-info"><p><strong><?php esc_html_e( 'Privacidade desde a conceção:', 'adam-bot' ); ?></strong> <?php esc_html_e( 'O ADAM BOT não guarda identidades de visitantes nem transcrições. Este ecrã apresenta apenas atividade agregada e anónima.', 'adam-bot' ); ?></p></div>
+			<table class="widefat striped adam-table" style="max-width:760px;margin-top:18px;"><tbody>
 				<tr><th><?php esc_html_e( 'Total de conversas', 'adam-bot' ); ?></th><td><?php echo esc_html( (string) $data['total_conversations'] ); ?></td></tr>
 				<tr><th><?php esc_html_e( 'Total de mensagens', 'adam-bot' ); ?></th><td><?php echo esc_html( (string) $data['total_messages'] ); ?></td></tr>
 				<tr><th><?php esc_html_e( 'Respostas com conhecimento', 'adam-bot' ); ?></th><td><?php echo esc_html( (string) $data['knowledge_hits'] ); ?></td></tr>
@@ -152,18 +154,20 @@ final class SettingsPage {
 				&& ( ! $only_unanswered || ! empty( $row['unanswered'] ) );
 		} ) );
 		?>
-		<div class="wrap">
-			<h1><?php esc_html_e( 'Analítica de pesquisa', 'adam-bot' ); ?></h1>
-			<p><?php esc_html_e( 'Tendências anónimas ajudam a encontrar conteúdo em falta e respostas que precisam de ser melhoradas.', 'adam-bot' ); ?></p>
-			<form method="get" style="display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:18px 0;padding:14px;background:#fff;border:1px solid #c3c4c7;">
+		<div class="wrap adam-admin-page">
+			<header class="adam-page-header"><div class="adam-page-header__content">
+			<h1 class="adam-page-title"><?php esc_html_e( 'Analítica de pesquisa', 'adam-bot' ); ?></h1>
+			<p class="adam-page-description"><?php esc_html_e( 'Tendências anónimas ajudam a encontrar conteúdo em falta e respostas que precisam de ser melhoradas.', 'adam-bot' ); ?></p>
+			</div></header>
+			<form class="adam-toolbar" method="get" style="margin:18px 0;">
 				<input type="hidden" name="page" value="adam-bot-search-analytics" />
-				<label><?php esc_html_e( 'Período', 'adam-bot' ); ?><br><select name="days"><option value="7" <?php selected( 7, $days ); ?>>7 dias</option><option value="30" <?php selected( 30, $days ); ?>>30 dias</option><option value="90" <?php selected( 90, $days ); ?>>90 dias</option><option value="180" <?php selected( 180, $days ); ?>>180 dias</option></select></label>
-				<label><?php esc_html_e( 'Categoria', 'adam-bot' ); ?><br><select name="category"><option value=""><?php esc_html_e( 'Todas', 'adam-bot' ); ?></option><?php foreach ( $this->analytics->getCategoryUsage() as $key => $count ) : ?><option value="<?php echo esc_attr( $key ); ?>" <?php selected( $key, $selected_category ); ?>><?php echo esc_html( $key ); ?></option><?php endforeach; ?></select></label>
-				<label><?php esc_html_e( 'Fornecedor', 'adam-bot' ); ?><br><select name="provider"><option value=""><?php esc_html_e( 'Todos', 'adam-bot' ); ?></option><?php foreach ( $this->analytics->getProviderUsage() as $key => $count ) : ?><option value="<?php echo esc_attr( $key ); ?>" <?php selected( $key, $selected_provider ); ?>><?php echo esc_html( $key ); ?></option><?php endforeach; ?></select></label>
+				<label><?php esc_html_e( 'Período', 'adam-bot' ); ?><br><select class="adam-select" name="days"><option value="7" <?php selected( 7, $days ); ?>>7 dias</option><option value="30" <?php selected( 30, $days ); ?>>30 dias</option><option value="90" <?php selected( 90, $days ); ?>>90 dias</option><option value="180" <?php selected( 180, $days ); ?>>180 dias</option></select></label>
+				<label><?php esc_html_e( 'Categoria', 'adam-bot' ); ?><br><select class="adam-select" name="category"><option value=""><?php esc_html_e( 'Todas', 'adam-bot' ); ?></option><?php foreach ( $this->analytics->getCategoryUsage() as $key => $count ) : ?><option value="<?php echo esc_attr( $key ); ?>" <?php selected( $key, $selected_category ); ?>><?php echo esc_html( $key ); ?></option><?php endforeach; ?></select></label>
+				<label><?php esc_html_e( 'Fornecedor', 'adam-bot' ); ?><br><select class="adam-select" name="provider"><option value=""><?php esc_html_e( 'Todos', 'adam-bot' ); ?></option><?php foreach ( $this->analytics->getProviderUsage() as $key => $count ) : ?><option value="<?php echo esc_attr( $key ); ?>" <?php selected( $key, $selected_provider ); ?>><?php echo esc_html( $key ); ?></option><?php endforeach; ?></select></label>
 				<label><input type="checkbox" name="unanswered" value="1" <?php checked( $only_unanswered ); ?> /> <?php esc_html_e( 'Apenas sem resposta', 'adam-bot' ); ?></label>
-				<button class="button"><?php esc_html_e( 'Aplicar filtros', 'adam-bot' ); ?></button>
+				<button class="button adam-button adam-button-secondary"><?php esc_html_e( 'Aplicar filtros', 'adam-bot' ); ?></button>
 			</form>
-			<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;max-width:900px;margin:20px 0;">
+			<div class="adam-stat-grid" style="max-width:900px;margin:20px 0;">
 				<?php $this->metricCard( __( 'Confiança média', 'adam-bot' ), $this->analytics->getAverageConfidence(), '%' ); ?>
 				<?php $this->metricCard( __( 'Tempo médio de resposta', 'adam-bot' ), $this->analytics->getAverageResponseTime(), ' ms' ); ?>
 				<?php $this->metricCard( __( 'Pesquisas com baixa confiança', 'adam-bot' ), (int) $data['low_confidence'] ); ?>
@@ -205,14 +209,14 @@ final class SettingsPage {
 		$experience = $this->experience_settings->all();
 		$option     = ExperienceSettings::OPTION_KEY;
 		?>
-		<div class="wrap">
-			<h1><?php esc_html_e( 'Definições do ADAM BOT', 'adam-bot' ); ?></h1>
+		<div class="wrap adam-admin-page">
+			<header class="adam-page-header"><div class="adam-page-header__content"><h1 class="adam-page-title"><?php esc_html_e( 'Definições do ADAM BOT', 'adam-bot' ); ?></h1></div></header>
 			<?php settings_errors(); ?>
 			<h2><?php esc_html_e( 'Ações rápidas da conversa', 'adam-bot' ); ?></h2>
 			<form method="post" action="options.php">
 				<?php settings_fields( self::EXPERIENCE_GROUP ); ?>
 				<p class="description"><?php esc_html_e( 'Configure os cartões apresentados aos visitantes antes da primeira pergunta.', 'adam-bot' ); ?></p>
-				<table class="widefat striped" style="max-width:960px;margin:12px 0 18px;"><thead><tr><th><?php esc_html_e( 'Ícone', 'adam-bot' ); ?></th><th><?php esc_html_e( 'Texto do cartão', 'adam-bot' ); ?></th><th><?php esc_html_e( 'Pergunta', 'adam-bot' ); ?></th></tr></thead><tbody>
+				<table class="widefat striped adam-table" style="max-width:960px;margin:12px 0 18px;"><thead><tr><th><?php esc_html_e( 'Ícone', 'adam-bot' ); ?></th><th><?php esc_html_e( 'Texto do cartão', 'adam-bot' ); ?></th><th><?php esc_html_e( 'Pergunta', 'adam-bot' ); ?></th></tr></thead><tbody>
 				<?php for ( $index = 0; $index < 8; $index++ ) : $action = $experience['quick_actions'][ $index ] ?? array( 'icon' => '', 'label' => '', 'prompt' => '' ); ?>
 					<tr><td><input class="small-text" type="text" maxlength="8" name="<?php echo esc_attr( $option ); ?>[quick_actions][<?php echo esc_attr( (string) $index ); ?>][icon]" value="<?php echo esc_attr( (string) $action['icon'] ); ?>" /></td><td><input class="regular-text" type="text" maxlength="60" name="<?php echo esc_attr( $option ); ?>[quick_actions][<?php echo esc_attr( (string) $index ); ?>][label]" value="<?php echo esc_attr( (string) $action['label'] ); ?>" /></td><td><input class="large-text" type="text" maxlength="240" name="<?php echo esc_attr( $option ); ?>[quick_actions][<?php echo esc_attr( (string) $index ); ?>][prompt]" value="<?php echo esc_attr( (string) $action['prompt'] ); ?>" /></td></tr>
 				<?php endfor; ?>
@@ -247,7 +251,7 @@ final class SettingsPage {
 
 	private function metricCard( string $label, int $value, string $suffix = '' ): void {
 		$formatted = function_exists( 'number_format_i18n' ) ? number_format_i18n( $value ) : number_format( $value );
-		echo '<div style="background:#fff;border:1px solid #c3c4c7;border-radius:4px;padding:16px;"><span style="display:block;color:#646970;">' . esc_html( $label ) . '</span><strong style="font-size:28px;line-height:1.4;">' . esc_html( $formatted . $suffix ) . '</strong></div>';
+		echo '<div class="adam-stat-card"><div class="adam-stat-card__content"><span class="adam-stat-card__label">' . esc_html( $label ) . '</span><strong class="adam-stat-card__value">' . esc_html( $formatted . $suffix ) . '</strong></div></div>';
 	}
 
 	/** @param array<int,array<string,mixed>> $rows Rows. */
@@ -310,7 +314,7 @@ final class SettingsPage {
 		echo '<div class="adam-bot-admin-chart" role="list" aria-label="' . esc_attr__( 'Dados do gráfico de barras', 'adam-bot' ) . '">';
 		foreach ( $rows as $label => $value ) {
 			$width = (int) round( max( 0, (int) $value ) * 100 / $maximum );
-			echo '<div role="listitem" style="display:grid;grid-template-columns:minmax(90px,1fr) 3fr 42px;gap:8px;align-items:center;margin:7px 0;"><span>' . esc_html( (string) $label ) . '</span><span aria-hidden="true" style="display:block;height:12px;background:#dcdcde;"><span style="display:block;width:' . esc_attr( (string) $width ) . '%;height:100%;background:#2271b1;"></span></span><strong>' . esc_html( (string) $value ) . '</strong></div>';
+			echo '<div role="listitem" style="display:grid;grid-template-columns:minmax(90px,1fr) 3fr 42px;gap:8px;align-items:center;margin:7px 0;"><span>' . esc_html( (string) $label ) . '</span><span aria-hidden="true" style="display:block;height:12px;background:var(--adam-border, #dcdcde);"><span style="display:block;width:' . esc_attr( (string) $width ) . '%;height:100%;background:var(--adam-primary, #2271b1);"></span></span><strong>' . esc_html( (string) $value ) . '</strong></div>';
 		}
 		echo '</div>';
 	}
@@ -328,7 +332,7 @@ final class SettingsPage {
 		if ( empty( $groups ) ) { echo '<p class="description">' . esc_html__( 'Não foram detetados grupos repetidos.', 'adam-bot' ) . '</p>'; return; }
 		echo '<div style="display:grid;gap:12px;max-width:900px;">';
 		foreach ( $groups as $group ) {
-			echo '<div style="background:#fff;border:1px solid #c3c4c7;padding:14px;"><strong>' . esc_html__( 'Considere consolidar estas perguntas', 'adam-bot' ) . '</strong><ul>';
+			echo '<div class="adam-card adam-card-body"><strong>' . esc_html__( 'Considere consolidar estas perguntas', 'adam-bot' ) . '</strong><ul>';
 			foreach ( (array) ( $group['questions'] ?? array() ) as $question ) { echo '<li>' . esc_html( (string) $question ) . '</li>'; }
 			echo '</ul><small>' . esc_html( (string) ( $group['count'] ?? 0 ) ) . ' ' . esc_html__( 'pesquisas no total', 'adam-bot' ) . '</small></div>';
 		}

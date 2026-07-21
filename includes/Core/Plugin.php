@@ -121,6 +121,7 @@ final class Plugin {
 		$knowledge_admin->register_content_types();
 
 		$this->components = array(
+			new InterfaceIntegration(),
 			new Frontend( $experience_settings ),
 			new API( $search_service, $response_formatter, new RateLimiter(), $analytics, $knowledge_settings ),
 			new SettingsPage( $experience_settings, $analytics, $knowledge_admin, $search_insights, $site_indexer ),

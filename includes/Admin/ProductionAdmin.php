@@ -47,8 +47,8 @@ final class ProductionAdmin {
 	public function renderUnanswered(): void {
 		$this->authorize();
 		$rows = $this->analytics->getNoAnswerQuestions( 100 );
-		echo '<div class="wrap"><h1>' . esc_html__( 'Perguntas sem resposta', 'adam-bot' ) . '</h1><p>' . esc_html__( 'Transforme pesquisas recorrentes sem resposta em conhecimento administrável.', 'adam-bot' ) . '</p>';
-		if ( empty( $rows ) ) { echo '<div class="notice notice-success inline"><p>' . esc_html__( 'Não existem perguntas pendentes.', 'adam-bot' ) . '</p></div></div>'; return; }
+		echo '<div class="wrap adam-admin-page"><h1 class="adam-page-title">' . esc_html__( 'Perguntas sem resposta', 'adam-bot' ) . '</h1><p class="adam-page-description">' . esc_html__( 'Transforme pesquisas recorrentes sem resposta em conhecimento administrável.', 'adam-bot' ) . '</p>';
+		if ( empty( $rows ) ) { echo '<div class="notice notice-success inline adam-alert adam-alert-success"><p>' . esc_html__( 'Não existem perguntas pendentes.', 'adam-bot' ) . '</p></div></div>'; return; }
 		echo '<table class="widefat striped"><thead><tr><th>' . esc_html__( 'Pergunta', 'adam-bot' ) . '</th><th>' . esc_html__( 'Vezes perguntada', 'adam-bot' ) . '</th><th>' . esc_html__( 'Última pergunta', 'adam-bot' ) . '</th><th>' . esc_html__( 'Ação', 'adam-bot' ) . '</th></tr></thead><tbody>';
 		foreach ( $rows as $row ) {
 			$question = sanitize_text_field( (string) ( $row['question'] ?? '' ) );
