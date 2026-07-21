@@ -53,6 +53,9 @@ final class Plugin {
 	/** @var DynamicProviderRegistry */
 	private $dynamic_providers;
 
+	/** @var bool */
+	private $initialized = false;
+
 	public function __construct( ?DynamicProviderRegistry $dynamic_providers = null ) {
 		$this->dynamic_providers = $dynamic_providers ?: new DynamicProviderRegistry();
 	}
@@ -63,9 +66,24 @@ final class Plugin {
 	 * @return void
 	 */
 	public function run(): void {
-		add_action( 'init', array( $this, 'load_textdomain' ) );
+		add_action( 'init', array( $this, 'load_textdomain' ), 0 );
+		add_action( 'init', array( $this, 'initialize' ), 1 );
+	}
+
+	/**
+	 * Builds services only after WordPress has started init and loaded the domain.
+	 *
+	 * @return void
+	 */
+	public function initialize(): void {
+		if ( $this->initialized ) {
+			return;
+		}
+		$this->initialized = true;
+
 		BuiltInProviders::register( $this->dynamic_providers );
 		$this->dynamic_providers->register_hooks();
+		$this->dynamic_providers->discover();
 
 		$knowledge_settings  = new KnowledgeSettings();
 		$experience_settings = new ExperienceSettings();

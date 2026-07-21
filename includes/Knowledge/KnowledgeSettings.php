@@ -84,8 +84,8 @@ final class KnowledgeSettings {
 	 */
 	public function defaults(): array {
 		return array(
-			'enabled_sources' => array_keys( $this->sources() ),
-			'known_sources'   => array_keys( $this->sources() ),
+			'enabled_sources' => $this->sourceKeys(),
+			'known_sources'   => $this->sourceKeys(),
 			'page_ids'        => array(),
 			'debug_mode'      => 0,
 		);
@@ -169,6 +169,13 @@ final class KnowledgeSettings {
 
 	/** @return void */
 	public static function activate(): void {
-		( new self() )->ensureDefaults();
+		if ( false === get_option( self::CACHE_VERSION_KEY, false ) ) {
+			add_option( self::CACHE_VERSION_KEY, 1, '', 'no' );
+		}
+	}
+
+	/** Returns source identifiers without evaluating any translated labels. */
+	private function sourceKeys(): array {
+		return array( 'faq', 'page', 'membership', 'event', 'manual' );
 	}
 }

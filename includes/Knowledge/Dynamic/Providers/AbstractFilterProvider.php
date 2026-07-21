@@ -39,6 +39,12 @@ abstract class AbstractFilterProvider implements DynamicProviderInterface {
 	public function getPriority(): int { return $this->priority; }
 	public function getCacheTtl(): int { return $this->cache_ttl; }
 
+	/** Translates runtime labels without triggering just-in-time loading before init. */
+	protected function translatedLabel( string $label ): string {
+		$ready = ( function_exists( 'did_action' ) && did_action( 'init' ) > 0 ) || ( function_exists( 'doing_action' ) && doing_action( 'init' ) );
+		return $ready ? __( $label, 'adam-bot' ) : $label;
+	}
+
 	public function supportsIntent( string $intent ): bool {
 		return in_array( sanitize_key( $intent ), $this->intents, true );
 	}

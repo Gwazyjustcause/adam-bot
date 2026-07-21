@@ -7,6 +7,7 @@ use AdamBot\Knowledge\Response\Component\ComponentInterface;
 use AdamBot\Knowledge\Response\Component\TeamCard;
 defined( 'ABSPATH' ) || exit;
 final class TeamProvider extends AbstractFilterProvider {
-	public function __construct() { parent::__construct( 'teams', __( 'Equipas da comunidade', 'adam-bot' ), array( Intent::TEAMS ), 86, 'adam_bot_dynamic_teams', 180 ); }
+	public function __construct() { parent::__construct( 'teams', 'teams', array( Intent::TEAMS ), 86, 'adam_bot_dynamic_teams', 180 ); }
+	public function getLabel(): string { return $this->translatedLabel( 'Equipas da comunidade' ); }
 	protected function card( array $item ): ?ComponentInterface { return new TeamCard( $item ); }
 }

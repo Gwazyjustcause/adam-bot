@@ -7,7 +7,8 @@ use AdamBot\Knowledge\Response\Component\ComponentInterface;
 use AdamBot\Knowledge\Response\Component\EventCard;
 defined( 'ABSPATH' ) || exit;
 final class EventProvider extends AbstractFilterProvider {
-	public function __construct() { parent::__construct( 'event', __( 'Eventos em tempo real', 'adam-bot' ), array( Intent::EVENTS ), 90, 'adam_bot_dynamic_events', 90 ); }
+	public function __construct() { parent::__construct( 'event', 'event', array( Intent::EVENTS ), 90, 'adam_bot_dynamic_events', 90 ); }
+	public function getLabel(): string { return $this->translatedLabel( 'Eventos em tempo real' ); }
 	protected function items( string $query, string $intent ): array {
 		$items = parent::items( $query, $intent );
 		$legacy = apply_filters( 'adam_bot_knowledge_event_items', array(), $query );

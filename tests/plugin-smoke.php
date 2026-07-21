@@ -47,6 +47,10 @@ $test_options               = array(
 $test_transients            = array();
 $test_posts_calls           = 0;
 $test_http_calls            = 0;
+$test_init_started          = false;
+$test_early_translations    = array();
+$test_textdomains_loaded    = array();
+$test_current_hook          = '';
 $test_assets                = array();
 $test_admin                 = array( 'settings' => array(), 'menus' => array(), 'submenus' => array() );
 $test_post_types            = array();
@@ -215,13 +219,21 @@ function test_assert( bool $condition, string $message ): void {
 
 /** Runs callbacks registered for a WordPress hook. */
 function run_test_hook( string $hook, ...$args ): void {
-	global $test_hooks;
-	$callbacks = $test_hooks[ $hook ] ?? array();
-	usort( $callbacks, static function ( array $left, array $right ): int { return $left['priority'] <=> $right['priority']; } );
-
-	foreach ( $callbacks as $registered ) {
+	global $test_hooks, $test_init_started, $test_current_hook;
+	$previous_hook = $test_current_hook;
+	$test_current_hook = $hook;
+	if ( 'init' === $hook ) {
+		$test_init_started = true;
+	}
+	$index = 0;
+	while ( true ) {
+		$callbacks = $test_hooks[ $hook ] ?? array();
+		usort( $callbacks, static function ( array $left, array $right ): int { return $left['priority'] <=> $right['priority']; } );
+		if ( ! isset( $callbacks[ $index ] ) ) { break; }
+		$registered = $callbacks[ $index++ ];
 		call_user_func_array( $registered['callback'], array_slice( $args, 0, (int) $registered['accepted_args'] ) );
 	}
+	$test_current_hook = $previous_hook;
 }
 
 function add_action( string $hook, $callback, int $priority = 10, int $accepted_args = 1 ): bool {
@@ -231,6 +243,8 @@ function add_action( string $hook, $callback, int $priority = 10, int $accepted_
 }
 function add_filter( string $hook, $callback, int $priority = 10, int $accepted_args = 1 ): bool { return add_action( $hook, $callback, $priority, $accepted_args ); }
 function do_action( string $hook, ...$args ): void { run_test_hook( $hook, ...$args ); }
+function did_action( string $hook ): int { global $test_init_started; return 'init' === $hook && $test_init_started ? 1 : 0; }
+function doing_action( string $hook ): bool { global $test_current_hook; return $hook === $test_current_hook; }
 
 function register_activation_hook( string $file, $callback ): void {
 	global $test_activation_callbacks;
@@ -241,11 +255,21 @@ function register_activation_hook( string $file, $callback ): void {
 function plugin_dir_path( string $file ): string { return dirname( $file ) . DIRECTORY_SEPARATOR; }
 function plugin_dir_url( string $file ): string { unset( $file ); return 'https://example.test/wp-content/plugins/adam-bot/'; }
 function plugin_basename( string $file ): string { return basename( $file ); }
-function load_plugin_textdomain( string $domain, bool $deprecated = false, string $path = '' ): bool { unset( $domain, $deprecated, $path ); return true; }
+function load_plugin_textdomain( string $domain, bool $deprecated = false, string $path = '' ): bool {
+	global $test_init_started, $test_early_translations, $test_textdomains_loaded;
+	unset( $deprecated );
+	if ( ! $test_init_started ) { $test_early_translations[] = 'load:' . $domain; }
+	$test_textdomains_loaded[ $domain ] = $path;
+	return true;
+}
 function is_admin(): bool { global $test_is_admin; return $test_is_admin; }
 function is_login(): bool { global $test_is_login; return $test_is_login; }
 
-function __( string $text, string $domain = '' ): string { unset( $domain ); return $text; }
+function __( string $text, string $domain = '' ): string {
+	global $test_init_started, $test_early_translations;
+	if ( 'adam-bot' === $domain && ! $test_init_started ) { $test_early_translations[] = $text; }
+	return $text;
+}
 function esc_html__( string $text, string $domain = '' ): string { return esc_html( __( $text, $domain ) ); }
 function esc_attr__( string $text, string $domain = '' ): string { return esc_attr( __( $text, $domain ) ); }
 function esc_html( string $text ): string { return htmlspecialchars( $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' ); }
@@ -346,7 +370,18 @@ function wp_remote_post( string $url, array $args ): array { global $test_http_c
 
 require dirname( __DIR__ ) . '/adam-bot.php';
 
+test_assert( empty( $test_early_translations ), 'The adam-bot text domain was evaluated before init.' );
+$pre_init_registry = new AdamBot\Knowledge\Dynamic\DynamicProviderRegistry();
+$pre_init_registry->register( new AdamBot\Knowledge\Dynamic\Providers\EventProvider() );
+$pre_init_registry->labels();
+( new AdamBot\Knowledge\Response\Component\EventCard( array( 'title' => 'Teste' ) ) )->toArray();
+test_assert( empty( $test_early_translations ), 'Provider or response-component construction evaluated translations before init.' );
+foreach ( $test_activation_callbacks as $activation_callback ) {
+	call_user_func( $activation_callback );
+}
+test_assert( empty( $test_early_translations ), 'A plugin activation callback evaluated translations before init.' );
 run_test_hook( 'init' );
+test_assert( isset( $test_textdomains_loaded['adam-bot'] ) && empty( $test_early_translations ), 'The adam-bot text domain was not loaded safely during init.' );
 run_test_hook( 'rest_api_init' );
 if ( 'admin' === $test_mode ) {
 	run_test_hook( 'admin_init' );

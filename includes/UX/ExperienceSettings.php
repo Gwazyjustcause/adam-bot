@@ -82,7 +82,7 @@ final class ExperienceSettings {
 
 	/** @return void */
 	public static function activate(): void {
-		( new self() )->ensureDefaults();
+		// Defaults are created during init, after the text domain is available.
 	}
 
 	/**

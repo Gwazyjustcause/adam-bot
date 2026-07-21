@@ -3,7 +3,7 @@ Contributors: adam
 Tags: chat, assistant, knowledge
 Requires at least: 6.3
 Requires PHP: 7.4
-Stable tag: 1.8.0
+Stable tag: 1.8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -113,6 +113,11 @@ session storage for recovery and are cleared when the browsing session ends.
 Server analytics contain aggregate counters and scrubbed common-question samples.
 
 == Changelog ==
+
+= 1.8.1 =
+* Deferred text-domain loading and all translated service initialization until the WordPress `init` hook.
+* Prevented activation callbacks, provider registration, and provider constructors from triggering just-in-time translation loading.
+* Added a regression test that fails when the `adam-bot` domain is evaluated before `init`.
 
 = 1.8.0 =
 * Completed the ADAM Assistant 1.0 production milestone.

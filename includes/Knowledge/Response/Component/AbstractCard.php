@@ -44,6 +44,12 @@ abstract class AbstractCard implements ComponentInterface {
 		return '' !== $value ? $label . ': ' . $value : '';
 	}
 
+	/** Translates card labels only after WordPress init has begun. */
+	protected function label( string $text ): string {
+		$ready = ( function_exists( 'did_action' ) && did_action( 'init' ) > 0 ) || ( function_exists( 'doing_action' ) && doing_action( 'init' ) );
+		return $ready ? __( $text, 'adam-bot' ) : $text;
+	}
+
 	private function truncate( string $value, int $limit ): string {
 		return function_exists( 'mb_substr' ) ? mb_substr( $value, 0, $limit ) : substr( $value, 0, $limit );
 	}

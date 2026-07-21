@@ -28,7 +28,6 @@ final class DynamicProviderRegistry {
 	public function register( DynamicProviderInterface $provider ): bool {
 		try {
 			$key      = sanitize_key( $provider->getKey() );
-			$label    = sanitize_text_field( $provider->getLabel() );
 			$priority = max( 0, min( 100, $provider->getPriority() ) );
 		} catch ( \Throwable $exception ) {
 			do_action( 'adam_bot_dynamic_provider_error', '', $exception );
@@ -39,7 +38,7 @@ final class DynamicProviderRegistry {
 		}
 		$this->providers[ $key ] = array(
 			'key'      => $key,
-			'label'    => $label,
+			'label'    => '',
 			'intents'  => array(),
 			'priority' => $priority,
 			'factory'  => null,
@@ -114,7 +113,7 @@ final class DynamicProviderRegistry {
 	/** @param array<string,string> $labels Existing labels. @return array<string,string> */
 	public function addProviderLabels( array $labels ): array {
 		foreach ( $this->providers as $key => $descriptor ) {
-			$labels[ $key ] = (string) $descriptor['label'];
+			$labels[ $key ] = $this->resolveLabel( (string) $key, $descriptor );
 		}
 		return $labels;
 	}
@@ -162,7 +161,7 @@ final class DynamicProviderRegistry {
 			}
 			$rows[] = array(
 				'key'       => (string) $key,
-				'label'     => (string) $descriptor['label'],
+				'label'     => $this->resolveLabel( (string) $key, $descriptor ),
 				'priority'  => (int) $descriptor['priority'],
 				'intents'   => array_values( (array) $descriptor['intents'] ),
 				'loaded'    => $provider instanceof DynamicProviderInterface,
@@ -205,5 +204,23 @@ final class DynamicProviderRegistry {
 		}
 		$this->providers[ $key ]['instance'] = $instance;
 		return $instance;
+	}
+
+	/** Resolves instance labels only after init so integrations may translate safely. */
+	private function resolveLabel( string $key, array $descriptor ): string {
+		$label = sanitize_text_field( (string) ( $descriptor['label'] ?? '' ) );
+		if ( '' !== $label ) { return $label; }
+		$init_started = function_exists( 'did_action' ) && did_action( 'init' ) > 0;
+		$init_running = function_exists( 'doing_action' ) && doing_action( 'init' );
+		if ( ! $init_started && ! $init_running ) { return $key; }
+		$provider = $descriptor['instance'] ?? null;
+		if ( ! $provider instanceof DynamicProviderInterface ) { return $key; }
+		try {
+			$label = sanitize_text_field( $provider->getLabel() );
+		} catch ( \Throwable $exception ) {
+			do_action( 'adam_bot_dynamic_provider_error', $key, $exception );
+			return $key;
+		}
+		return '' !== $label ? $label : $key;
 	}
 }

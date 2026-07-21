@@ -9,7 +9,8 @@ use AdamBot\Knowledge\Response\Component\ComponentInterface;
 use AdamBot\Knowledge\Response\Component\InformationBox;
 defined( 'ABSPATH' ) || exit;
 final class MembershipProvider extends AbstractFilterProvider {
-	public function __construct() { parent::__construct( 'membership', __( 'Sócios em tempo real', 'adam-bot' ), array( Intent::MEMBERSHIP ), 96, 'adam_bot_dynamic_membership', 180 ); }
+	public function __construct() { parent::__construct( 'membership', 'membership', array( Intent::MEMBERSHIP ), 96, 'adam_bot_dynamic_membership', 180 ); }
+	public function getLabel(): string { return $this->translatedLabel( 'Sócios em tempo real' ); }
 	protected function items( string $query, string $intent ): array {
 		$items = parent::items( $query, $intent );
 		$legacy = apply_filters( 'adam_bot_knowledge_membership_items', array(), $query );
