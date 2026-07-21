@@ -3,7 +3,7 @@ Contributors: adam
 Tags: chat, assistant, knowledge
 Requires at least: 6.3
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -20,18 +20,40 @@ The Phase 6 interface remains unchanged: administrator-configurable quick action
 safe rich Markdown, contextual follow-ups, trusted website navigation, temporary
 conversation recovery, mobile optimization, and accessible keyboard behavior.
 Phase 7 removes external AI services, API keys, model settings, and internet
-connectivity from the response path. Only a lightweight topic and recently shown
-result IDs are used as current-session search context. Aggregate analytics store
-no visitor identifiers or conversation transcripts.
+connectivity from the response path. Phase 8 turns that engine into a complete
+WordPress-native content management system. Administrators control questions,
+answers, structured response blocks, search terms, synonyms, weighting,
+navigation, categories, related questions, visibility, ordering, and revisions.
+Anonymous Search Analytics stores no visitor identifiers or transcripts.
 
 == Installation ==
 
 1. Copy the `adam-bot` directory into `/wp-content/plugins/`.
 2. Activate **ADAM BOT** from the WordPress Plugins screen.
-3. Open **ADAM BOT -> Knowledge** to enable sources and select website pages.
-4. Add FAQs or manual knowledge entries as needed.
-5. Open **ADAM BOT -> Settings** to customize the quick-action cards.
+3. Open **ADAM BOT -> Knowledge Base** to create and organize answers.
+4. Use **ADAM BOT -> FAQ** for frequently asked questions.
+5. Open **ADAM BOT -> Settings** to enable providers, select website pages,
+   import/export content, and customize the quick-action cards.
 6. Open any public page and use the ADAM BOT launcher in the bottom-left corner.
+
+== Knowledge Administration ==
+
+Knowledge Base and FAQ entries support unlimited coloured/icon categories,
+published/draft/hidden states, keywords, synonyms, editorial priority, search
+weight, related pages, administrator-authored buttons, and related knowledge.
+The no-code Rich Response Builder supports paragraphs, headings, bullet and
+numbered lists, buttons, links, warnings, information boxes, and success boxes.
+
+Each editor includes a Search Preview with matched keywords, confidence, provider,
+and rendered response, plus duplicate warnings. WordPress revisions include the
+knowledge metadata so administrators can compare and restore old versions.
+JSON and CSV import/export includes response blocks, relationships, ordering,
+statuses, and category appearance metadata.
+
+Search Analytics reports common questions, unanswered questions, low-confidence
+searches, average confidence, average response time, and most-viewed entries.
+All records are anonymous aggregates; the Conversations screen intentionally does
+not retain transcripts or visitor identifiers.
 
 == Knowledge Integrations ==
 
@@ -42,9 +64,13 @@ filters. Event plugins can also expose their post types through
 `adam_bot_knowledge_invalidate_cache` action after external source data changes.
 
 Additional providers implement `AdamBot\Knowledge\KnowledgeProviderInterface`,
-register through `adam_bot_knowledge_providers`, and add their key and label to
-`adam_bot_knowledge_provider_registry`. Provider results use the normalized
-`KnowledgeResult` contract, keeping the REST and frontend contracts unchanged.
+register through `adam_bot_knowledge_providers`, and are searched immediately.
+They may add their key and label to `adam_bot_knowledge_provider_registry` to
+expose an enable/disable control in Settings. Newly registered providers are
+enabled by default. Provider results use the normalized `KnowledgeResult`
+contract, including optional keywords, synonyms, search weight, button label,
+response blocks, related questions, and object ID, while keeping the REST and
+frontend contracts stable.
 
 == Privacy and Connectivity ==
 
@@ -54,6 +80,20 @@ session storage for recovery and are cleared when the browsing session ends.
 Server analytics contain aggregate counters and scrubbed common-question samples.
 
 == Changelog ==
+
+= 1.6.0 =
+* Added the ADAM BOT Dashboard, Conversations, Knowledge Base, FAQ, Search Analytics, and Settings navigation.
+* Added complete Knowledge Base and FAQ CRUD fields, statuses, list columns, bulk actions, ordering, and search.
+* Added unlimited hierarchical categories with colours and icons.
+* Added keywords, synonyms, priority, search weight, navigation buttons, related pages, and related knowledge.
+* Added a no-code rich response builder with paragraph, heading, list, button, link, warning, information, and success blocks.
+* Added in-editor search previews with confidence, matched terms, provider, and response output.
+* Added deterministic duplicate detection and warnings.
+* Added anonymous missing-answer, low-confidence, timing, confidence, common-query, and entry-view analytics.
+* Added JSON/CSV import and export with two-pass relationship migration and category appearance metadata.
+* Added WordPress revision comparison and restore support for Knowledge metadata.
+* Removed hardcoded topic follow-ups and inferred navigation labels; providers now own this content.
+* Kept the provider interface open so future ADAM plugins are searched without core changes.
 
 = 1.5.0 =
 * Replaced the external AI pipeline with SearchService, ResultRanker, and ResponseFormatter.

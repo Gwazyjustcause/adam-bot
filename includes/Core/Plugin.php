@@ -17,6 +17,9 @@ use AdamBot\Frontend\Frontend;
 use AdamBot\Helpers\Logger;
 use AdamBot\Knowledge\KnowledgeAdmin;
 use AdamBot\Knowledge\KnowledgeSettings;
+use AdamBot\Knowledge\DuplicateDetector;
+use AdamBot\Knowledge\ImportExport;
+use AdamBot\Knowledge\RevisionManager;
 use AdamBot\Knowledge\Search\KeywordMatcher;
 use AdamBot\Knowledge\Search\ResultRanker;
 use AdamBot\Knowledge\Search\SearchService;
@@ -74,12 +77,15 @@ final class Plugin {
 			)
 		);
 		$response_formatter = new ResponseFormatter( $matcher );
+		$knowledge_admin    = new KnowledgeAdmin( $knowledge_settings, $search_service, $response_formatter, new DuplicateDetector( $matcher ) );
 
 		$this->components = array(
 			new Frontend( $experience_settings ),
 			new API( $search_service, $response_formatter, new RateLimiter(), $analytics ),
-			new SettingsPage( $experience_settings, $analytics ),
-			new KnowledgeAdmin( $knowledge_settings ),
+			new SettingsPage( $experience_settings, $analytics, $knowledge_admin ),
+			$knowledge_admin,
+			new RevisionManager(),
+			new ImportExport(),
 			new Assets( $experience_settings ),
 		);
 

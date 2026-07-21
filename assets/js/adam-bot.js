@@ -84,6 +84,18 @@
 				}
 
 				const heading = line.match( /^(#{1,3})\s+(.+)$/ );
+				const callout = line.match( /^\[!(warning|information|success)\]\s+(.+)$/i );
+				if ( callout ) {
+					const element = document.createElement( 'div' );
+					const label = document.createElement( 'strong' );
+					element.className = `adam-bot__callout adam-bot__callout--${ callout[ 1 ].toLowerCase() }`;
+					label.textContent = `${ callout[ 1 ].charAt( 0 ).toUpperCase() + callout[ 1 ].slice( 1 ).toLowerCase() }: `;
+					element.appendChild( label );
+					this.appendInline( element, callout[ 2 ] );
+					fragment.appendChild( element );
+					index++;
+					continue;
+				}
 				if ( heading ) {
 					const element = document.createElement( `h${ heading[ 1 ].length + 2 }` );
 					this.appendInline( element, heading[ 2 ] );
@@ -139,7 +151,8 @@
 		}
 
 		startsBlock( lines, index ) {
-			return /^(#{1,3})\s+/.test( lines[ index ] )
+			return /^\[!(warning|information|success)\]\s+/i.test( lines[ index ] )
+				|| /^(#{1,3})\s+/.test( lines[ index ] )
 				|| /^\s*[-*+]\s+/.test( lines[ index ] )
 				|| /^\s*\d+[.)]\s+/.test( lines[ index ] )
 				|| this.isTable( lines, index );
@@ -544,6 +557,15 @@
 			region.appendChild( title );
 
 			safeLinks.forEach( ( linkData ) => {
+				if ( linkData.kind === 'link' ) {
+					const link = document.createElement( 'a' );
+					link.className = 'adam-bot__resource-link';
+					link.href = linkData.url;
+					link.rel = 'noopener noreferrer';
+					link.textContent = `${ linkData.label } →`;
+					region.appendChild( link );
+					return;
+				}
 				const card = document.createElement( 'div' );
 				const text = document.createElement( 'span' );
 				const link = document.createElement( 'a' );
@@ -654,6 +676,7 @@
 					title: String( link.title || 'ADAM' ).slice( 0, 100 ),
 					label: String( link.label || 'Saber mais' ).slice( 0, 50 ),
 					url: safeUrl.href,
+					kind: link && link.kind === 'link' ? 'link' : 'button',
 				} );
 				return clean;
 			}, [] );

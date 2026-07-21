@@ -67,7 +67,8 @@ final class EventSource implements KnowledgeSourceInterface {
 						(string) get_permalink( $post ),
 						0,
 						array(),
-						$priority
+						$priority,
+						array( 'object_id' => (int) $post->ID, 'keywords' => array( 'event', 'events' ) )
 					);
 				}
 			}
@@ -111,7 +112,7 @@ final class EventSource implements KnowledgeSourceInterface {
 				$this->clean( (string) ( $item['location'] ?? '' ) ),
 				$this->clean( (string) ( $item['price'] ?? '' ) )
 			);
-			$priority = max( $this->datePriority( $date ), max( 0, min( 15, (int) ( $item['priority'] ?? 0 ) ) ) );
+			$priority = max( $this->datePriority( $date ), max( 0, min( 100, (int) ( $item['priority'] ?? 50 ) ) ) );
 
 			if ( '' !== $content ) {
 				$results[] = new KnowledgeResult(
@@ -123,7 +124,16 @@ final class EventSource implements KnowledgeSourceInterface {
 					(string) ( $item['url'] ?? '' ),
 					0,
 					array(),
-					$priority
+					$priority,
+					array(
+						'keywords'        => array_merge( array( 'event', 'events' ), isset( $item['keywords'] ) && is_array( $item['keywords'] ) ? $item['keywords'] : array() ),
+						'synonyms'        => $item['synonyms'] ?? array(),
+						'search_weight'   => $item['search_weight'] ?? 100,
+						'button_label'    => $item['button_text'] ?? '',
+						'response_blocks' => $item['response_blocks'] ?? array(),
+						'related'         => $item['related'] ?? array(),
+						'object_id'       => $item['object_id'] ?? 0,
+					)
 				);
 			}
 		}

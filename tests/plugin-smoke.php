@@ -50,16 +50,30 @@ $test_http_calls            = 0;
 $test_assets                = array();
 $test_admin                 = array( 'settings' => array(), 'menus' => array(), 'submenus' => array() );
 $test_post_types            = array();
+$test_meta_boxes            = array();
 $test_activation_callbacks  = array();
 $test_post_meta             = array(
 	201 => array(
 		'_adam_bot_category' => 'Membership',
 		'_adam_bot_priority' => '90',
 		'_adam_bot_enabled'  => '1',
+		'_adam_bot_question' => 'What are the membership prices?',
+		'_adam_bot_keywords' => array( 'membership', 'prices', 'cost' ),
+		'_adam_bot_synonyms' => array( 'quota', 'fees' ),
+		'_adam_bot_search_weight' => '100',
+		'_adam_bot_related_entries' => array( 204 ),
 	),
 	203 => array(
 		'_adam_bot_category' => 'Rules',
 		'_adam_bot_enabled'  => '1',
+		'_adam_bot_question' => 'What is the chronograph limit?',
+		'_adam_bot_keywords' => array( 'chronograph', 'limit' ),
+	),
+	204 => array(
+		'_adam_bot_category' => 'Membership',
+		'_adam_bot_enabled'  => '1',
+		'_adam_bot_question' => 'What are the membership benefits?',
+		'_adam_bot_keywords' => array( 'membership', 'benefits' ),
 	),
 	301 => array(
 		'event_start_date' => '2026-08-01 10:00:00',
@@ -87,6 +101,12 @@ $test_posts                 = array(
 		'post_excerpt' => '',
 	),
 	(object) array(
+		'ID' => 204, 'post_type' => 'adam_bot_knowledge', 'post_status' => 'publish',
+		'post_title' => 'Membership Benefits',
+		'post_content' => 'Members receive event and partner benefits.',
+		'post_excerpt' => '',
+	),
+	(object) array(
 		'ID' => 301, 'post_type' => 'event', 'post_status' => 'publish',
 		'post_title' => 'Summer Game',
 		'post_content' => 'A published ADAM airsoft game.',
@@ -100,6 +120,9 @@ $test_membership_items      = array(
 		'category' => 'Membership',
 		'url' => 'https://example.test/renew-membership',
 		'priority' => 10,
+		'keywords' => array( 'membership', 'renewal' ),
+		'synonyms' => array( 'renovo', 'renovar', 'quota' ),
+		'button_text' => 'Renew Membership',
 		'enabled' => true,
 	),
 );
@@ -174,6 +197,7 @@ function add_action( string $hook, $callback, int $priority = 10, int $accepted_
 	$test_hooks[ $hook ][] = compact( 'callback', 'priority', 'accepted_args' );
 	return true;
 }
+function add_filter( string $hook, $callback, int $priority = 10, int $accepted_args = 1 ): bool { return add_action( $hook, $callback, $priority, $accepted_args ); }
 
 function register_activation_hook( string $file, $callback ): void {
 	global $test_activation_callbacks;
@@ -247,16 +271,19 @@ function get_permalink( $post ): string { $id = is_object( $post ) ? (int) $post
 function post_type_exists( string $post_type ): bool { return in_array( $post_type, array( 'page', 'event', 'adam_bot_faq', 'adam_bot_knowledge' ), true ); }
 function get_pages(): array { return get_posts( array( 'post_type' => 'page' ) ); }
 function get_the_title( $post ): string { return is_object( $post ) ? (string) $post->post_title : ''; }
+function get_post( int $post_id ) { global $test_posts; foreach ( $test_posts as $post ) { if ( (int) $post->ID === $post_id ) { return $post; } } return null; }
+function get_the_terms( int $post_id, string $taxonomy ): array { unset( $post_id, $taxonomy ); return array(); }
 
 function register_rest_route( string $namespace, string $route, array $args ): bool { global $test_routes; $test_routes[ $namespace . $route ] = $args; return true; }
 function rest_url( string $path = '' ): string { return 'https://example.test/wp-json/' . ltrim( $path, '/' ); }
 function wp_create_nonce( string $action ): string { unset( $action ); return 'test-nonce'; }
 
 function register_post_type( string $type, array $args ): void { global $test_post_types; $test_post_types[ $type ] = $args; }
+function register_taxonomy( string $taxonomy, array $object_types, array $args ): void { global $test_admin; $test_admin['taxonomies'][ $taxonomy ] = compact( 'object_types', 'args' ); }
 function register_setting( string $group, string $option, array $args ): void { global $test_admin; $test_admin['settings'][ $option ] = compact( 'group', 'args' ); }
 function add_menu_page( string $page_title, string $menu_title, string $capability, string $slug, $callback, string $icon = '', $position = null ): string { global $test_admin; unset( $page_title, $menu_title, $capability, $icon, $position ); $test_admin['menus'][ $slug ] = $callback; return $slug; }
-function add_submenu_page( string $parent, string $page_title, string $menu_title, string $capability, string $slug, $callback ): string { global $test_admin; unset( $page_title, $menu_title, $capability ); $test_admin['submenus'][ $slug ] = compact( 'parent', 'callback' ); return $slug; }
-function add_meta_box( ...$args ): void { unset( $args ); }
+function add_submenu_page( string $parent, string $page_title, string $menu_title, string $capability, string $slug, $callback = null ): string { global $test_admin; unset( $page_title, $menu_title, $capability ); $test_admin['submenus'][ $slug ] = compact( 'parent', 'callback' ); return $slug; }
+function add_meta_box( ...$args ): void { global $test_meta_boxes; $test_meta_boxes[] = $args; }
 function current_user_can( string $capability, ...$args ): bool { unset( $capability, $args ); return true; }
 function wp_die( string $message ): void { throw new RuntimeException( $message ); }
 function settings_errors( string $setting = '' ): void { unset( $setting ); }
@@ -285,6 +312,7 @@ run_test_hook( 'rest_api_init' );
 if ( 'admin' === $test_mode ) {
 	run_test_hook( 'admin_init' );
 	run_test_hook( 'admin_menu' );
+	run_test_hook( 'add_meta_boxes' );
 }
 
 $route = $test_routes['adam-bot/v1/chat'] ?? array();
@@ -364,6 +392,38 @@ $rich_set = new AdamBot\Knowledge\DTO\SearchResultSet( array( $rich ), array(), 
 $rich_message = $formatter->format( $rich_set, 'Que tipos de sócio existem?' )->toPublicArray()['message'];
 test_assert( false !== strpos( $rich_message, '- Sócio efetivo' ) && false !== strpos( $rich_message, '| Tipo | Quota |' ), 'Rich list or table formatting regressed.' );
 
+$structured = new AdamBot\Knowledge\DTO\KnowledgeResult(
+	'manual',
+	'Knowledge Base',
+	'How do I renew?',
+	'Renew your membership.',
+	'Membership',
+	'/registration/',
+	92,
+	array( 'renew' ),
+	70,
+	array(
+		'keywords' => array( 'renew', 'membership' ),
+		'synonyms' => array( 'quota' ),
+		'search_weight' => 120,
+		'button_label' => 'Register now',
+		'response_blocks' => array(
+			array( 'type' => 'heading', 'text' => 'Renewal', 'url' => '' ),
+			array( 'type' => 'information', 'text' => 'Have your member number ready.', 'url' => '' ),
+			array( 'type' => 'button', 'text' => 'Register now', 'url' => '/registration/' ),
+		),
+		'related' => array( array( 'title' => 'Membership Benefits', 'question' => 'What benefits do members receive?' ) ),
+		'object_id' => 203,
+	)
+);
+$structured_set = new AdamBot\Knowledge\DTO\SearchResultSet( array( $structured ), array(), 92, 'high', 'membership', 'manual', array( 'renew' ), 1 );
+$structured_response = $formatter->format( $structured_set, 'How do I renew?' )->toPublicArray();
+test_assert( false !== strpos( $structured_response['message'], 'Have your member number ready.' ), 'Structured information block was not rendered.' );
+test_assert( 'Register now' === ( $structured_response['links'][0]['label'] ?? '' ) && '/registration/' === ( $structured_response['links'][0]['url'] ?? '' ), 'Administrator-authored button was not preserved.' );
+test_assert( 'What benefits do members receive?' === ( $structured_response['suggestions'][0]['prompt'] ?? '' ), 'Related Knowledge did not drive follow-up suggestions.' );
+$structured_cached = AdamBot\Knowledge\DTO\KnowledgeResult::fromArray( $structured->toArray() );
+test_assert( 120 === $structured_cached->getSearchWeight() && 203 === $structured_cached->getObjectId(), 'Provider-neutral metadata was not cache safe.' );
+
 $low = $medium->withRank( 20, array( 'quota' ) );
 $low_set = new AdamBot\Knowledge\DTO\SearchResultSet( array( $low ), array( $low ), 20, 'low', 'membership', 'faq', array( 'quota' ), 1 );
 $low_response = $formatter->format( $low_set, 'quota' )->toPublicArray();
@@ -398,12 +458,21 @@ test_assert( $custom->hasResults() && 'custom' === $custom->getMatchedProvider()
 test_assert( 1 === $empty_provider->calls && 1 === $synthetic_provider->calls, 'SearchService did not query every registered provider.' );
 test_assert( $custom_cached->hasResults(), 'Registered-provider search was not cached.' );
 
+$weighted_low = new AdamBot\Knowledge\DTO\KnowledgeResult( 'custom', 'Custom', 'Generic', 'Nothing special.', '', '', 0, array(), 50, array( 'synonyms' => array( 'airsofting' ), 'search_weight' => 50 ) );
+$weighted_high = new AdamBot\Knowledge\DTO\KnowledgeResult( 'custom', 'Custom', 'Specific', 'Nothing special.', '', '', 0, array(), 50, array( 'keywords' => array( 'airsofting' ), 'search_weight' => 150 ) );
+$weighted = $ranker->rank( 'airsofting', array( $weighted_low, $weighted_high ) );
+test_assert( 'Specific' === $weighted[0]->getTitle() && $weighted[0]->getScore() > $weighted[1]->getScore(), 'Keywords or Search Weight did not affect ranking.' );
+
+$duplicates = new AdamBot\Knowledge\DuplicateDetector( $matcher );
+test_assert( $duplicates->similarity( 'how do i become a member', 'how can i become a member' ) >= 72, 'Duplicate similarity threshold missed a likely duplicate.' );
+
 $analytics = new AdamBot\Analytics\Analytics();
 $analytics->record( 'Email person@example.test or call +351 912 345 678', false, 25, 'none', false );
 $analytics_json = wp_json_encode( $test_options['adam_bot_analytics'] );
 test_assert( false === strpos( $analytics_json, 'person@example.test' ) && false === strpos( $analytics_json, '+351 912 345 678' ), 'Analytics retained personal data.' );
 test_assert( false !== strpos( $analytics_json, '[email]' ) && false !== strpos( $analytics_json, '[number]' ), 'Analytics did not scrub common personal data.' );
 test_assert( (int) ( $test_options['adam_bot_analytics']['high_confidence'] ?? 0 ) >= 1 && (int) ( $test_options['adam_bot_analytics']['no_confidence'] ?? 0 ) >= 1, 'Confidence analytics were not recorded.' );
+test_assert( ! empty( $analytics->getMostViewedEntries() ) && $analytics->getAverageConfidence() > 0, 'Search analytics did not retain anonymous entry views or confidence.' );
 
 $source_text = '';
 $iterator    = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( dirname( __DIR__ ) . '/includes' ) );
@@ -413,16 +482,24 @@ foreach ( $iterator as $file ) {
 	}
 }
 test_assert( false === stripos( $source_text, 'OpenAI' ) && false === strpos( $source_text, 'wp_remote_post' ), 'External AI provider code remains in the runtime.' );
+test_assert( false === strpos( $source_text, 'mappedSuggestions' ) && false === strpos( $source_text, 'buttonLabel(' ), 'Hardcoded knowledge suggestions or navigation labels remain.' );
 
 if ( 'admin' === $test_mode ) {
 	test_assert( isset( $test_admin['settings']['adam_bot_experience_settings'], $test_admin['settings']['adam_bot_knowledge_settings'] ), 'Admin settings were not registered.' );
 	test_assert( ! isset( $test_admin['settings']['adam_bot_ai_settings'] ), 'AI settings are still registered.' );
 	test_assert( isset( $test_post_types['adam_bot_faq'], $test_post_types['adam_bot_knowledge'] ), 'Knowledge entry types were not registered.' );
+	test_assert( in_array( 'revisions', $test_post_types['adam_bot_knowledge']['supports'], true ), 'Knowledge version history is not enabled.' );
+	test_assert( isset( $test_admin['taxonomies']['adam_bot_category'] ), 'Unlimited Knowledge categories were not registered.' );
+	$required_menus = array( 'adam-bot', 'adam-bot-conversations', 'edit.php?post_type=adam_bot_knowledge', 'edit.php?post_type=adam_bot_faq', 'adam-bot-search-analytics', 'adam-bot-settings' );
+	test_assert( empty( array_diff( $required_menus, array_keys( $test_admin['submenus'] ) ) ), 'Phase 8 admin navigation is incomplete.' );
+	$meta_box_ids = array_map( static function ( array $box ): string { return (string) ( $box[0] ?? '' ); }, $test_meta_boxes );
+	test_assert( in_array( 'adam-bot-response-builder', $meta_box_ids, true ) && in_array( 'adam-bot-search-preview', $meta_box_ids, true ) && in_array( 'adam-bot-duplicates', $meta_box_ids, true ), 'Phase 8 entry management boxes are incomplete.' );
+	test_assert( isset( $test_hooks['wp_post_revision_meta_keys'], $test_hooks['wp_restore_post_revision'], $test_hooks['admin_post_adam_bot_import_knowledge'], $test_hooks['admin_post_adam_bot_export_knowledge'] ), 'Revisions or import/export hooks were not registered.' );
 
 	ob_start();
 	call_user_func( $test_admin['menus']['adam-bot'] );
 	$settings_page = ob_get_clean();
-	test_assert( false !== strpos( $settings_page, 'Quick Actions' ) && false !== strpos( $settings_page, 'High confidence' ), 'Phase 7 settings page is incomplete.' );
+	test_assert( false !== strpos( $settings_page, 'Quick Actions' ) && false !== strpos( $settings_page, 'High confidence' ), 'Phase 8 dashboard is incomplete.' );
 	test_assert( false === stripos( $settings_page, 'OpenAI' ) && false === stripos( $settings_page, 'API Key' ), 'AI controls remain visible.' );
 
 	$sanitize = $test_admin['settings']['adam_bot_experience_settings']['args']['sanitize_callback'];
@@ -444,4 +521,4 @@ if ( 'public' === $test_mode ) {
 	test_assert( ! isset( $test_hooks['wp_enqueue_scripts'], $test_hooks['wp_footer'] ), 'Frontend hooks were registered on a protected screen.' );
 }
 
-echo sprintf( "PASS: %s Phase 7 boundary.\n", $test_mode );
+echo sprintf( "PASS: %s Phase 8 boundary.\n", $test_mode );

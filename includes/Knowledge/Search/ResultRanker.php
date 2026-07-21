@@ -20,20 +20,6 @@ final class ResultRanker {
 	/** @var KeywordMatcher */
 	private $matcher;
 
-	/** @var array<string, array<int, string>> */
-	private $synonym_groups = array(
-		'membership' => array( 'membership', 'member', 'members', 'membro', 'membros', 'socio', 'socios', 'quota', 'quotas', 'aderente', 'efetivo' ),
-		'renewal'    => array( 'renew', 'renewal', 'renovar', 'renovacao', 'renova', 'renovo', 'quota' ),
-		'price'      => array( 'price', 'cost', 'costs', 'preco', 'precos', 'custa', 'custar', 'valor', 'quota' ),
-		'benefits'   => array( 'benefit', 'benefits', 'beneficio', 'beneficios', 'vantagem', 'vantagens' ),
-		'events'     => array( 'event', 'events', 'evento', 'eventos', 'jogo', 'jogos', 'agenda', 'partida' ),
-		'rules'      => array( 'rule', 'rules', 'regra', 'regras', 'safety', 'seguranca', 'limite', 'limites', 'joule', 'joules', 'potencia' ),
-		'contact'    => array( 'contact', 'contacts', 'contacto', 'contactos', 'contactar', 'telefone', 'email', 'morada' ),
-		'register'   => array( 'register', 'registration', 'join', 'inscrever', 'inscricao', 'aderir', 'participar' ),
-		'airsoft'    => array( 'airsoft', 'replica', 'replicas', 'equipamento', 'protecao' ),
-		'about'      => array( 'about', 'adam', 'associacao', 'organizacao' ),
-	);
-
 	/** @param KeywordMatcher $matcher Shared text normalizer. */
 	public function __construct( KeywordMatcher $matcher ) {
 		$this->matcher = $matcher;
@@ -61,6 +47,8 @@ final class ResultRanker {
 			$title    = $this->matcher->normalize( $candidate->getTitle() );
 			$content  = $this->matcher->normalize( $candidate->getContent() );
 			$category = $this->matcher->normalize( $candidate->getCategory() );
+			$keywords = $this->matcher->normalize( implode( ' ', $candidate->getKeywords() ) );
+			$synonyms = $this->matcher->normalize( implode( ' ', $candidate->getSynonyms() ) );
 			$score    = 0;
 			$matched  = array();
 
@@ -72,10 +60,8 @@ final class ResultRanker {
 
 			foreach ( $query_terms as $term ) {
 				$term_score = $this->scoreTerm( $term, $title, $content, $category );
-
-				foreach ( $this->synonymsFor( $term ) as $synonym ) {
-					$term_score = max( $term_score, $this->scoreSynonym( $synonym, $title, $content, $category ) );
-				}
+				$term_score += $this->containsWord( $keywords, $term ) ? 18 : ( false !== strpos( $keywords, $term ) ? 9 : 0 );
+				$term_score += $this->containsWord( $synonyms, $term ) ? 14 : ( false !== strpos( $synonyms, $term ) ? 7 : 0 );
 
 				if ( $term_score > 0 ) {
 					$score    += $term_score;
@@ -87,10 +73,10 @@ final class ResultRanker {
 				$coverage = count( array_unique( $matched ) ) / max( 1, count( $query_terms ) );
 				$score   += (int) round( $coverage * 18 );
 				$score   += min( 12, count( array_unique( $matched ) ) * 3 );
-				$score   += min( 15, $candidate->getPriority() );
+				$score   += (int) round( $candidate->getPriority() * 0.15 );
 			}
 
-			if ( '' !== $topic && $this->matchesTopic( $topic, $title . ' ' . $category . ' ' . $candidate->getSource() ) ) {
+			if ( '' !== $topic && $this->matchesTopic( $topic, $title . ' ' . $category . ' ' . $keywords . ' ' . $synonyms . ' ' . $candidate->getSource() ) ) {
 				$score += 10;
 			}
 
@@ -98,6 +84,7 @@ final class ResultRanker {
 				$score += 5;
 			}
 
+			$score    = (int) round( $score * $candidate->getSearchWeight() / 100 );
 			$ranked[] = $candidate->withRank( min( 100, $score ), array_values( array_unique( $matched ) ) );
 		}
 
@@ -122,7 +109,8 @@ final class ResultRanker {
 
 	/** @return array<int, string> */
 	public function getTopicTerms( string $topic ): array {
-		return $this->synonym_groups[ sanitize_key( $topic ) ] ?? array( sanitize_key( $topic ) );
+		$terms = preg_split( '/[_-]+/', sanitize_key( $topic ), -1, PREG_SPLIT_NO_EMPTY );
+		return is_array( $terms ) ? $terms : array();
 	}
 
 	/** @return int */
@@ -133,30 +121,6 @@ final class ResultRanker {
 		$score += $this->containsWord( $content, $term ) ? 6 : ( false !== strpos( $content, $term ) ? 3 : 0 );
 
 		return $score;
-	}
-
-	/** @return int */
-	private function scoreSynonym( string $term, string $title, string $content, string $category ): int {
-		if ( $this->containsWord( $title, $term ) ) {
-			return 10;
-		}
-
-		if ( $this->containsWord( $category, $term ) ) {
-			return 8;
-		}
-
-		return $this->containsWord( $content, $term ) ? 4 : 0;
-	}
-
-	/** @return array<int, string> */
-	private function synonymsFor( string $term ): array {
-		foreach ( $this->synonym_groups as $synonyms ) {
-			if ( in_array( $term, $synonyms, true ) ) {
-				return array_values( array_diff( $synonyms, array( $term ) ) );
-			}
-		}
-
-		return array();
 	}
 
 	/** @return bool */

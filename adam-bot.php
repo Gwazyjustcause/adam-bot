@@ -3,7 +3,7 @@
  * Plugin Name:       ADAM BOT
  * Plugin URI:        https://airsoftmondego.pt/
  * Description:       Accessible ADAM virtual assistant powered by the local Knowledge Response Engine.
- * Version:           1.5.0
+ * Version:           1.6.0
  * Requires at least: 6.3
  * Requires PHP:      7.4
  * Author:            ADAM
@@ -17,7 +17,7 @@ declare(strict_types=1);
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'ADAM_BOT_VERSION', '1.5.0' );
+define( 'ADAM_BOT_VERSION', '1.6.0' );
 define( 'ADAM_BOT_FILE', __FILE__ );
 define( 'ADAM_BOT_PATH', plugin_dir_path( __FILE__ ) );
 define( 'ADAM_BOT_URL', plugin_dir_url( __FILE__ ) );

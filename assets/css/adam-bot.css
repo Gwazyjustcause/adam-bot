@@ -615,6 +615,30 @@
 	font-size: 0.9em;
 }
 
+.adam-bot__callout {
+	margin: 0 0 10px;
+	padding: 9px 10px;
+	border: 1px solid var(--adam-border);
+	border-left-width: 4px;
+	border-radius: 8px;
+	background: var(--adam-surface-soft);
+}
+
+.adam-bot__callout--warning {
+	border-left-color: #dba617;
+	background: #fcf9e8;
+}
+
+.adam-bot__callout--information {
+	border-left-color: #2d83ff;
+	background: #eef6ff;
+}
+
+.adam-bot__callout--success {
+	border-left-color: var(--adam-accent);
+	background: var(--adam-accent-soft);
+}
+
 .adam-bot__table-wrap {
 	max-width: 100%;
 	overflow: hidden;
@@ -690,6 +714,15 @@
 	min-width: 0;
 	overflow-wrap: anywhere;
 	font-weight: 650;
+}
+
+.adam-bot__resource-link {
+	display: block;
+	margin-top: 5px;
+	color: var(--adam-accent-strong);
+	font-size: 12px;
+	font-weight: 750;
+	text-underline-offset: 2px;
 }
 
 .adam-bot__knowledge-card {
@@ -976,6 +1009,14 @@
 	.adam-bot__knowledge-card {
 		border-color: rgba(72, 216, 155, 0.2) !important;
 	}
+
+	.adam-bot__callout--warning {
+		background: #3a3216;
+	}
+
+	.adam-bot__callout--information {
+		background: #142d47;
+	}
 }
 
 @media (max-width: 600px) {
@@ -1064,6 +1105,7 @@
 	.adam-bot__bubble,
 	.adam-bot__page-card,
 	.adam-bot__knowledge-card,
+	.adam-bot__callout,
 	.adam-bot__chip,
 	.adam-bot__input-wrap {
 		border: 1px solid CanvasText !important;

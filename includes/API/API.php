@@ -125,13 +125,19 @@ final class API {
 		$new_conversation = $this->toBoolean( $request->get_param( 'new_conversation' ) );
 		$search           = $this->search_service->search( $message, $context );
 		$response         = $this->response_formatter->format( $search, $message );
+		$top              = $search->getTopResult();
 
 		$this->analytics->record(
 			$message,
 			$new_conversation,
 			$response->getResponseTimeMs(),
 			$response->getConfidenceLevel(),
-			$response->hasKnowledgeHit()
+			$response->hasKnowledgeHit(),
+			true,
+			$search->getConfidence(),
+			$top ? $top->getObjectId() : 0,
+			$top ? $top->getTitle() : '',
+			$search->getMatchedProvider()
 		);
 
 		return new WP_REST_Response( $response->toPublicArray(), 200 );
@@ -163,9 +169,8 @@ final class API {
 			return array( 'topic' => '', 'recent_result_ids' => array() );
 		}
 
-		$allowed_topics = array( 'membership', 'events', 'rules', 'contact', 'airsoft', 'about' );
 		$topic          = sanitize_key( (string) ( $value['topic'] ?? '' ) );
-		$topic          = in_array( $topic, $allowed_topics, true ) ? $topic : '';
+		$topic          = substr( $topic, 0, 64 );
 		$ids            = $value['recentResultIds'] ?? $value['recent_result_ids'] ?? array();
 		$ids            = is_array( $ids ) ? $ids : array();
 		$ids            = array_values(

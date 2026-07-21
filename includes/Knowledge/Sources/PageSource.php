@@ -69,7 +69,8 @@ final class PageSource implements KnowledgeSourceInterface {
 					(string) get_permalink( $post ),
 					0,
 					array(),
-					5
+					5,
+					array( 'object_id' => (int) $post->ID )
 				);
 			}
 		}

@@ -42,6 +42,27 @@ final class KnowledgeResult {
 	/** @var array<int, string> */
 	private $matched_keywords;
 
+	/** @var array<int, string> */
+	private $keywords;
+
+	/** @var array<int, string> */
+	private $synonyms;
+
+	/** @var int */
+	private $search_weight;
+
+	/** @var string */
+	private $button_label;
+
+	/** @var array<int, array<string, mixed>> */
+	private $response_blocks;
+
+	/** @var array<int, array<string, string>> */
+	private $related;
+
+	/** @var int */
+	private $object_id;
+
 	/**
 	 * Creates a knowledge result.
 	 *
@@ -54,6 +75,7 @@ final class KnowledgeResult {
 	 * @param int                $score Relevance score from 0 to 100.
 	 * @param array<int, string> $matched_keywords Terms that contributed to the central rank.
 	 * @param int                $priority Provider-owned editorial priority from 0 to 100.
+	 * @param array<string,mixed> $attributes Optional provider-neutral display and search metadata.
 	 */
 	public function __construct(
 		string $source,
@@ -64,7 +86,8 @@ final class KnowledgeResult {
 		string $url = '',
 		int $score = 0,
 		array $matched_keywords = array(),
-		int $priority = 0
+		int $priority = 0,
+		array $attributes = array()
 	) {
 		$this->source           = sanitize_key( $source );
 		$this->source_label     = trim( $source_label );
@@ -81,6 +104,13 @@ final class KnowledgeResult {
 				)
 			)
 		);
+		$this->keywords         = $this->sanitizeTerms( $attributes['keywords'] ?? array() );
+		$this->synonyms         = $this->sanitizeTerms( $attributes['synonyms'] ?? array() );
+		$this->search_weight    = max( 0, min( 200, (int) ( $attributes['search_weight'] ?? 100 ) ) );
+		$this->button_label     = sanitize_text_field( (string) ( $attributes['button_label'] ?? '' ) );
+		$this->response_blocks  = isset( $attributes['response_blocks'] ) && is_array( $attributes['response_blocks'] ) ? $attributes['response_blocks'] : array();
+		$this->related          = $this->sanitizeRelated( $attributes['related'] ?? array() );
+		$this->object_id        = max( 0, (int) ( $attributes['object_id'] ?? 0 ) );
 	}
 
 	/** @return string */
@@ -128,6 +158,41 @@ final class KnowledgeResult {
 		return $this->matched_keywords;
 	}
 
+	/** @return array<int, string> */
+	public function getKeywords(): array {
+		return $this->keywords;
+	}
+
+	/** @return array<int, string> */
+	public function getSynonyms(): array {
+		return $this->synonyms;
+	}
+
+	/** @return int */
+	public function getSearchWeight(): int {
+		return $this->search_weight;
+	}
+
+	/** @return string */
+	public function getButtonLabel(): string {
+		return $this->button_label;
+	}
+
+	/** @return array<int, array<string, mixed>> */
+	public function getResponseBlocks(): array {
+		return $this->response_blocks;
+	}
+
+	/** @return array<int, array<string, string>> */
+	public function getRelated(): array {
+		return $this->related;
+	}
+
+	/** @return int */
+	public function getObjectId(): int {
+		return $this->object_id;
+	}
+
 	/** @return string */
 	public function getId(): string {
 		return md5( $this->source . '|' . $this->title . '|' . $this->url );
@@ -150,7 +215,8 @@ final class KnowledgeResult {
 			$this->url,
 			$score,
 			$matched_keywords,
-			$this->priority
+			$this->priority,
+			$this->attributes()
 		);
 	}
 
@@ -170,6 +236,7 @@ final class KnowledgeResult {
 			'score'            => $this->score,
 			'priority'         => $this->priority,
 			'matched_keywords' => $this->matched_keywords,
+			'attributes'       => $this->attributes(),
 		);
 	}
 
@@ -189,7 +256,66 @@ final class KnowledgeResult {
 			(string) ( $data['url'] ?? '' ),
 			(int) ( $data['score'] ?? 0 ),
 			isset( $data['matched_keywords'] ) && is_array( $data['matched_keywords'] ) ? $data['matched_keywords'] : array(),
-			(int) ( $data['priority'] ?? 0 )
+			(int) ( $data['priority'] ?? 0 ),
+			isset( $data['attributes'] ) && is_array( $data['attributes'] ) ? $data['attributes'] : array()
 		);
+	}
+
+	/** @return array<string, mixed> */
+	private function attributes(): array {
+		return array(
+			'keywords'        => $this->keywords,
+			'synonyms'        => $this->synonyms,
+			'search_weight'   => $this->search_weight,
+			'button_label'    => $this->button_label,
+			'response_blocks' => $this->response_blocks,
+			'related'         => $this->related,
+			'object_id'       => $this->object_id,
+		);
+	}
+
+	/** @param mixed $terms Candidate terms. @return array<int, string> */
+	private function sanitizeTerms( $terms ): array {
+		if ( is_string( $terms ) ) {
+			$terms = preg_split( '/[,\r\n]+/u', $terms, -1, PREG_SPLIT_NO_EMPTY );
+		}
+
+		if ( ! is_array( $terms ) ) {
+			return array();
+		}
+
+		return array_slice(
+			array_values(
+				array_unique(
+					array_filter( array_map( static function ( $term ): string { return sanitize_text_field( (string) $term ); }, $terms ) )
+				)
+			),
+			0,
+			100
+		);
+	}
+
+	/** @param mixed $related Candidate related entries. @return array<int, array<string, string>> */
+	private function sanitizeRelated( $related ): array {
+		if ( ! is_array( $related ) ) {
+			return array();
+		}
+
+		$clean = array();
+		foreach ( $related as $item ) {
+			if ( ! is_array( $item ) ) {
+				continue;
+			}
+			$title    = sanitize_text_field( (string) ( $item['title'] ?? '' ) );
+			$question = sanitize_text_field( (string) ( $item['question'] ?? $title ) );
+			if ( '' !== $title && '' !== $question ) {
+				$clean[] = array( 'title' => $title, 'question' => $question );
+			}
+			if ( 12 === count( $clean ) ) {
+				break;
+			}
+		}
+
+		return $clean;
 	}
 }

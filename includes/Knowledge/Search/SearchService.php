@@ -203,33 +203,10 @@ final class SearchService {
 	/** @return string */
 	private function inferTopic( string $query, ?KnowledgeResult $top, string $current_topic ): string {
 		if ( $top instanceof KnowledgeResult ) {
-			if ( 'membership' === $top->getSource() ) {
-				return 'membership';
-			}
-
-			if ( 'event' === $top->getSource() ) {
-				return 'events';
-			}
+			$category = sanitize_key( str_replace( ' ', '-', $top->getCategory() ) );
+			return '' !== $category ? $category : $top->getSource();
 		}
-
-		$value = $this->matcher->normalize(
-			$query . ' ' . ( $top instanceof KnowledgeResult ? $top->getTitle() . ' ' . $top->getCategory() : '' )
-		);
-		$patterns = array(
-			'membership' => '/\b(membership|member|membro|socio|quota|renov|beneficio|aderente|efetivo|inscri)/',
-			'events'     => '/\b(event|evento|jogo|agenda|partida)/',
-			'rules'      => '/\b(rule|regra|safety|seguranca|joule|potencia|limite)/',
-			'contact'    => '/\b(contact|contacto|telefone|email|morada)/',
-			'airsoft'    => '/\b(airsoft|replica|equipamento|protecao)/',
-			'about'      => '/\b(about|adam|associacao|organizacao)/',
-		);
-
-		foreach ( $patterns as $topic => $pattern ) {
-			if ( preg_match( $pattern, $value ) ) {
-				return $topic;
-			}
-		}
-
+		unset( $query );
 		return $current_topic;
 	}
 

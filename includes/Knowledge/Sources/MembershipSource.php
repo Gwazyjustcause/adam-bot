@@ -56,7 +56,7 @@ final class MembershipSource implements KnowledgeSourceInterface {
 			$title    = $this->clean( (string) ( $item['title'] ?? '' ) );
 			$content  = $this->clean( (string) ( $item['content'] ?? '' ) );
 			$category = $this->clean( (string) ( $item['category'] ?? __( 'Membership', 'adam-bot' ) ) );
-			$priority = max( 0, min( 15, (int) ( $item['priority'] ?? 0 ) ) );
+			$priority = max( 0, min( 100, (int) ( $item['priority'] ?? 50 ) ) );
 
 			if ( '' !== $content ) {
 				$results[] = new KnowledgeResult(
@@ -68,7 +68,16 @@ final class MembershipSource implements KnowledgeSourceInterface {
 					(string) ( $item['url'] ?? '' ),
 					0,
 					array(),
-					$priority
+					$priority,
+					array(
+						'keywords'        => $item['keywords'] ?? array(),
+						'synonyms'        => $item['synonyms'] ?? array(),
+						'search_weight'   => $item['search_weight'] ?? 100,
+						'button_label'    => $item['button_text'] ?? '',
+						'response_blocks' => $item['response_blocks'] ?? array(),
+						'related'         => $item['related'] ?? array(),
+						'object_id'       => $item['object_id'] ?? 0,
+					)
 				);
 			}
 		}
