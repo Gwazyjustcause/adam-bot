@@ -3,7 +3,7 @@ Contributors: adam
 Tags: chat, assistant, knowledge
 Requires at least: 6.3
 Requires PHP: 7.4
-Stable tag: 1.6.0
+Stable tag: 1.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -25,6 +25,12 @@ WordPress-native content management system. Administrators control questions,
 answers, structured response blocks, search terms, synonyms, weighting,
 navigation, categories, related questions, visibility, ordering, and revisions.
 Anonymous Search Analytics stores no visitor identifiers or transcripts.
+
+Phase 9 adds intent-aware live providers for events, community teams, associated
+fields, partners, news, documents, and public membership information. Providers
+are registered lazily and return reusable rich cards. Static knowledge remains a
+ranked fallback, so administrators keep full control while live platform data is
+preferred whenever it is relevant.
 
 == Installation ==
 
@@ -52,25 +58,44 @@ statuses, and category appearance metadata.
 
 Search Analytics reports common questions, unanswered questions, low-confidence
 searches, average confidence, average response time, and most-viewed entries.
+It also reports the detected intent, selected provider, provider duration, result
+count, confidence, and fallback path for recent anonymous searches.
 All records are anonymous aggregates; the Conversations screen intentionally does
 not retain transcripts or visitor identifiers.
 
 == Knowledge Integrations ==
 
-Existing ADAM components can contribute authoritative structured records through
-the `adam_bot_knowledge_membership_items` and `adam_bot_knowledge_event_items`
-filters. Event plugins can also expose their post types through
-`adam_bot_knowledge_event_post_types`. Trigger the
-`adam_bot_knowledge_invalidate_cache` action after external source data changes.
+Ecosystem plugins implement
+`AdamBot\Knowledge\Dynamic\DynamicProviderInterface` and can register at any
+time after ADAM BOT loads:
 
-Additional providers implement `AdamBot\Knowledge\KnowledgeProviderInterface`,
-register through `adam_bot_knowledge_providers`, and are searched immediately.
-They may add their key and label to `adam_bot_knowledge_provider_registry` to
-expose an enable/disable control in Settings. Newly registered providers are
-enabled by default. Provider results use the normalized `KnowledgeResult`
-contract, including optional keywords, synonyms, search weight, button label,
-response blocks, related questions, and object ID, while keeping the REST and
-frontend contracts stable.
+`adam_bot()->providers()->register( new CommunityProvider() );`
+
+Plugins that initialize earlier can register on the
+`adam_bot_register_dynamic_providers` action. The interface declares provider
+availability, supported intents, search, follow-up suggestions, priority, and
+cache lifetime. The registry discovers providers without ADAM BOT referring to
+the owning plugin, and newly registered providers receive a Settings toggle.
+
+The built-in filter adapters accept public records from:
+`adam_bot_dynamic_events`, `adam_bot_dynamic_teams`,
+`adam_bot_dynamic_fields`, `adam_bot_dynamic_partners`,
+`adam_bot_dynamic_news`, `adam_bot_dynamic_documents`, and
+`adam_bot_dynamic_membership`. Each filter receives the empty result list, query,
+intent, and provider. Records may include title/name, content/description,
+keywords, synonyms, URL, image, priority, and type-specific public fields. Set
+`public` to false to exclude a record, or `matched` to true when the owning
+plugin has already performed non-lexical matching. Membership records must
+contain public information only; the adapter never requests or renders member
+accounts.
+
+The older `adam_bot_knowledge_membership_items` and
+`adam_bot_knowledge_event_items` filters remain supported by their live adapters.
+External event post types are opt-in through
+`adam_bot_knowledge_event_post_types`. Their owning plugin can enrich each base
+post record through `adam_bot_knowledge_event_post_item`; ADAM BOT contains no
+plugin-specific post-type or metadata assumptions. Trigger
+`adam_bot_knowledge_invalidate_cache` when owning data changes.
 
 == Privacy and Connectivity ==
 
@@ -80,6 +105,16 @@ session storage for recovery and are cleared when the browsing session ends.
 Server analytics contain aggregate counters and scrubbed common-question samples.
 
 == Changelog ==
+
+= 1.7.0 =
+* Added DynamicProviderInterface, DynamicProviderRegistry, ProviderResolver, and the stable `adam_bot()->providers()` registration API.
+* Added lazy, filter-backed live providers for events, teams, associated fields, partners, news, documents, and public membership information.
+* Added lightweight English/Portuguese intent detection and provider priorities with relevant static-knowledge fallback.
+* Added reusable Event, Team, Field, Partner, News, and Document Cards, button groups, information boxes, and warning boxes.
+* Added multi-result card rendering with images, metadata, primary/secondary actions, and downloadable document links.
+* Added provider and response caching without querying unrelated dynamic providers.
+* Added anonymous intent, provider, duration, result-count, confidence, and fallback diagnostics to Search Analytics.
+* Removed core assumptions about third-party plugin classes and event post types.
 
 = 1.6.0 =
 * Added the ADAM BOT Dashboard, Conversations, Knowledge Base, FAQ, Search Analytics, and Settings navigation.

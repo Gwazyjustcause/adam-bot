@@ -20,6 +20,10 @@ use AdamBot\Knowledge\KnowledgeSettings;
 use AdamBot\Knowledge\DuplicateDetector;
 use AdamBot\Knowledge\ImportExport;
 use AdamBot\Knowledge\RevisionManager;
+use AdamBot\Knowledge\Dynamic\BuiltInProviders;
+use AdamBot\Knowledge\Dynamic\DynamicProviderRegistry;
+use AdamBot\Knowledge\Dynamic\IntentDetector;
+use AdamBot\Knowledge\Dynamic\ProviderResolver;
 use AdamBot\Knowledge\Search\KeywordMatcher;
 use AdamBot\Knowledge\Search\ResultRanker;
 use AdamBot\Knowledge\Search\SearchService;
@@ -27,7 +31,6 @@ use AdamBot\Knowledge\Response\ResponseFormatter;
 use AdamBot\Knowledge\Sources\EventSource;
 use AdamBot\Knowledge\Sources\FAQSource;
 use AdamBot\Knowledge\Sources\ManualSource;
-use AdamBot\Knowledge\Sources\MembershipSource;
 use AdamBot\Knowledge\Sources\PageSource;
 use AdamBot\UX\ExperienceSettings;
 
@@ -44,6 +47,13 @@ final class Plugin {
 	 */
 	private $components = array();
 
+	/** @var DynamicProviderRegistry */
+	private $dynamic_providers;
+
+	public function __construct( ?DynamicProviderRegistry $dynamic_providers = null ) {
+		$this->dynamic_providers = $dynamic_providers ?: new DynamicProviderRegistry();
+	}
+
 	/**
 	 * Loads dependencies and registers plugin hooks.
 	 *
@@ -51,6 +61,8 @@ final class Plugin {
 	 */
 	public function run(): void {
 		add_action( 'init', array( $this, 'load_textdomain' ) );
+		BuiltInProviders::register( $this->dynamic_providers );
+		$this->dynamic_providers->register_hooks();
 
 		$knowledge_settings  = new KnowledgeSettings();
 		$experience_settings = new ExperienceSettings();
@@ -63,6 +75,7 @@ final class Plugin {
 
 		$matcher        = new KeywordMatcher();
 		$result_ranker  = new ResultRanker( $matcher );
+		$provider_resolver = new ProviderResolver( $this->dynamic_providers, new IntentDetector( $matcher ), $knowledge_settings, $matcher, $logger );
 		$search_service = new SearchService(
 			$knowledge_settings,
 			$result_ranker,
@@ -71,10 +84,10 @@ final class Plugin {
 			array(
 				new FAQSource(),
 				new PageSource( $knowledge_settings ),
-				new MembershipSource(),
-				new EventSource(),
 				new ManualSource(),
-			)
+				new EventSource(),
+			),
+			$provider_resolver
 		);
 		$response_formatter = new ResponseFormatter( $matcher );
 		$knowledge_admin    = new KnowledgeAdmin( $knowledge_settings, $search_service, $response_formatter, new DuplicateDetector( $matcher ) );

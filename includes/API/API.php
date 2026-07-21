@@ -137,7 +137,14 @@ final class API {
 			$search->getConfidence(),
 			$top ? $top->getObjectId() : 0,
 			$top ? $top->getTitle() : '',
-			$search->getMatchedProvider()
+			$search->getMatchedProvider(),
+			$search->getIntent(),
+			$search->getFallbackProvider(),
+			$search->getProviderResultCount(),
+			$search->getProviderDurationMs(),
+			$search->isDynamic(),
+			$top ? $top->getCategory() : '',
+			$search->getMatchedKeywords()
 		);
 
 		return new WP_REST_Response( $response->toPublicArray(), 200 );

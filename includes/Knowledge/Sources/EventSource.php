@@ -11,6 +11,7 @@ namespace AdamBot\Knowledge\Sources;
 
 use AdamBot\Knowledge\DTO\KnowledgeResult;
 use AdamBot\Knowledge\KnowledgeSourceInterface;
+use AdamBot\Knowledge\Response\Component\EventCard;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -45,30 +46,51 @@ final class EventSource implements KnowledgeSourceInterface {
 			);
 
 			foreach ( $posts as $post ) {
-				$title    = $this->clean( (string) $post->post_title );
-				$date     = $this->firstMeta( $post->ID, array( '_EventStartDate', 'event_start_date', '_event_start_date', 'start_date', 'event_date' ) );
-				$location = $this->firstMeta( $post->ID, array( '_EventVenue', 'event_location', '_event_location', 'location', 'venue' ) );
-				$price    = $this->firstMeta( $post->ID, array( 'event_price', '_event_price', 'price', 'cost' ) );
+				$item = apply_filters(
+					'adam_bot_knowledge_event_post_item',
+					array(
+						'title'     => (string) $post->post_title,
+						'content'   => (string) ( $post->post_excerpt ?? '' ) . "\n" . (string) $post->post_content,
+						'url'       => (string) get_permalink( $post ),
+						'object_id' => (int) $post->ID,
+					),
+					$post,
+					$query
+				);
+				if ( ! is_array( $item ) || ( isset( $item['public'] ) && ! $item['public'] ) || ( isset( $item['enabled'] ) && ! $item['enabled'] ) ) {
+					continue;
+				}
+				$title    = $this->clean( (string) ( $item['title'] ?? '' ) );
+				$date     = $this->clean( (string) ( $item['date'] ?? $item['start_date'] ?? '' ) );
+				$location = $this->clean( (string) ( $item['location'] ?? '' ) );
+				$price    = $this->clean( (string) ( $item['price'] ?? '' ) );
 				$content  = $this->eventContent(
-					$this->clean( (string) ( $post->post_excerpt ?? '' ) . "\n" . (string) $post->post_content ),
+					$this->clean( (string) ( $item['content'] ?? '' ) ),
 					$date,
 					$location,
 					$price
 				);
-				$priority = $this->datePriority( $date );
+				$priority = max( $this->datePriority( $date ), max( 0, min( 100, (int) ( $item['priority'] ?? 50 ) ) ) );
 
-				if ( '' !== $content ) {
+				if ( '' !== $title && '' !== $content ) {
 					$results[] = new KnowledgeResult(
 						$this->getKey(),
 						__( 'ADAM event information', 'adam-bot' ),
 						$title,
 						$content,
 						__( 'Events', 'adam-bot' ),
-						(string) get_permalink( $post ),
+						esc_url_raw( (string) ( $item['url'] ?? $item['registration_url'] ?? '' ) ),
 						0,
 						array(),
 						$priority,
-						array( 'object_id' => (int) $post->ID, 'keywords' => array( 'event', 'events' ) )
+						array(
+							'object_id'     => (int) ( $item['object_id'] ?? $post->ID ),
+							'keywords'      => array_merge( array( 'event', 'events' ), isset( $item['keywords'] ) && is_array( $item['keywords'] ) ? $item['keywords'] : array() ),
+							'synonyms'      => $item['synonyms'] ?? array(),
+							'search_weight' => $item['search_weight'] ?? 100,
+							'button_label'  => $item['button_text'] ?? '',
+							'components'    => array( ( new EventCard( $item ) )->toArray() ),
+						)
 					);
 				}
 			}
@@ -99,7 +121,7 @@ final class EventSource implements KnowledgeSourceInterface {
 		$results = array();
 
 		foreach ( $items as $item ) {
-			if ( ! is_array( $item ) || ( isset( $item['enabled'] ) && ! $item['enabled'] ) ) {
+			if ( ! is_array( $item ) || ( isset( $item['public'] ) && ! $item['public'] ) || ( isset( $item['enabled'] ) && ! $item['enabled'] ) ) {
 				continue;
 			}
 
@@ -121,7 +143,7 @@ final class EventSource implements KnowledgeSourceInterface {
 					$title,
 					$content,
 					$category,
-					(string) ( $item['url'] ?? '' ),
+					esc_url_raw( (string) ( $item['url'] ?? $item['registration_url'] ?? '' ) ),
 					0,
 					array(),
 					$priority,
@@ -133,6 +155,7 @@ final class EventSource implements KnowledgeSourceInterface {
 						'response_blocks' => $item['response_blocks'] ?? array(),
 						'related'         => $item['related'] ?? array(),
 						'object_id'       => $item['object_id'] ?? 0,
+						'components'      => array( ( new EventCard( $item ) )->toArray() ),
 					)
 				);
 			}
@@ -148,7 +171,7 @@ final class EventSource implements KnowledgeSourceInterface {
 		 *
 		 * @param array<int, string> $post_types Candidate event post types.
 		 */
-		$post_types = apply_filters( 'adam_bot_knowledge_event_post_types', array( 'event', 'events', 'tribe_events' ) );
+		$post_types = apply_filters( 'adam_bot_knowledge_event_post_types', array() );
 		$post_types = is_array( $post_types ) ? $post_types : array();
 
 		return array_values(
@@ -159,25 +182,6 @@ final class EventSource implements KnowledgeSourceInterface {
 				}
 			)
 		);
-	}
-
-	/**
-	 * Gets the first non-empty value from known event meta keys.
-	 *
-	 * @param int                $post_id Event post ID.
-	 * @param array<int, string> $keys Candidate keys.
-	 * @return string
-	 */
-	private function firstMeta( int $post_id, array $keys ): string {
-		foreach ( $keys as $key ) {
-			$value = get_post_meta( $post_id, $key, true );
-
-			if ( is_scalar( $value ) && '' !== trim( (string) $value ) ) {
-				return $this->clean( (string) $value );
-			}
-		}
-
-		return '';
 	}
 
 	/**

@@ -33,15 +33,20 @@ final class ResponseFormatter {
 		$cards      = array();
 
 		if ( in_array( $level, array( 'high', 'medium' ), true ) && $top instanceof KnowledgeResult ) {
-			$cards = 'event' === $top->getSource() ? $this->buildEventCards( $search->getResults() ) : array();
+			$cards = $this->buildComponentCards( $search->getResults() );
+			if ( empty( $cards ) && 'event' === $top->getSource() ) {
+				$cards = $this->buildEventCards( $search->getResults() );
+			}
 			if ( ! empty( $cards ) ) {
-				$message = $is_english ? 'I found the following ADAM events.' : 'Encontrei os seguintes eventos da ADAM.';
+				$message = $this->formatAnswer( $top );
+				$message = '' !== $message ? $message : $top->getTitle();
+				$links   = $this->buildComponentLinks( $top );
 			} else {
 				$answer  = $this->formatAnswer( $top );
 				$message = 'medium' === $level
 					? ( $is_english ? "I found an answer that may help.\n\n" : "Encontrei uma resposta que poderá ajudá-lo.\n\n" ) . $answer
 					: $answer;
-				$links = array_slice( array_merge( $this->buildBlockLinks( $top ), $this->buildLinks( array( $top ) ) ), 0, 3 );
+				$links = array_slice( array_merge( $this->buildComponentLinks( $top ), $this->buildBlockLinks( $top ), $this->buildLinks( array( $top ) ) ), 0, 4 );
 			}
 		} elseif ( 'low' === $level ) {
 			$message = $is_english ? 'I found some related pages that may help.' : 'Encontrei algumas páginas relacionadas que poderão ajudar.';
@@ -73,6 +78,11 @@ final class ResponseFormatter {
 	}
 
 	private function formatAnswer( KnowledgeResult $result ): string {
+		$component_message = $this->formatComponentMessages( $result );
+		if ( '' !== $component_message ) {
+			return $component_message;
+		}
+
 		if ( ! empty( $result->getResponseBlocks() ) ) {
 			return $this->formatBlocks( $result->getResponseBlocks() );
 		}
@@ -228,6 +238,73 @@ final class ResponseFormatter {
 			}
 		}
 		return $links;
+	}
+
+	/** Converts provider information/warning components into safe callouts. */
+	private function formatComponentMessages( KnowledgeResult $result ): string {
+		$parts = array();
+		foreach ( $result->getComponents() as $component ) {
+			$type = sanitize_key( (string) ( $component['component'] ?? '' ) );
+			$text = $this->truncate( sanitize_textarea_field( (string) ( $component['text'] ?? '' ) ), 800 );
+			if ( '' === $text ) { continue; }
+			if ( 'information_box' === $type ) { $parts[] = '[!information] ' . $text; }
+			if ( 'warning_box' === $type ) { $parts[] = '[!warning] ' . $text; }
+		}
+		return implode( "\n\n", $parts );
+	}
+
+	/** @return array<int,array<string,string>> */
+	private function buildComponentLinks( KnowledgeResult $result ): array {
+		$links = array();
+		foreach ( $result->getComponents() as $component ) {
+			if ( 'button_group' !== sanitize_key( (string) ( $component['component'] ?? '' ) ) || ! isset( $component['buttons'] ) || ! is_array( $component['buttons'] ) ) { continue; }
+			foreach ( $component['buttons'] as $button ) {
+				if ( ! is_array( $button ) ) { continue; }
+				$label = sanitize_text_field( (string) ( $button['label'] ?? '' ) );
+				$url = esc_url_raw( (string) ( $button['url'] ?? '' ) );
+				if ( '' !== $label && '' !== $url ) { $links[] = array( 'title' => $result->getTitle(), 'label' => $label, 'url' => $url, 'kind' => 'button' ); }
+			}
+		}
+		return array_slice( $links, 0, 4 );
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	private function buildComponentCards( array $results ): array {
+		$cards = array();
+		foreach ( $results as $result ) {
+			if ( ! $result instanceof KnowledgeResult ) { continue; }
+			foreach ( $result->getComponents() as $component ) {
+				if ( 'card' !== sanitize_key( (string) ( $component['component'] ?? '' ) ) ) { continue; }
+				$cards[] = array(
+					'type'        => sanitize_key( (string) ( $component['type'] ?? 'result' ) ),
+					'groupLabel'  => $this->truncate( sanitize_text_field( (string) ( $component['group_label'] ?? __( 'Results', 'adam-bot' ) ) ), 80 ),
+					'image'       => esc_url_raw( (string) ( $component['image'] ?? '' ) ),
+					'title'       => $this->truncate( sanitize_text_field( (string) ( $component['title'] ?? $result->getTitle() ) ), 140 ),
+					'description' => $this->truncate( sanitize_text_field( (string) ( $component['description'] ?? '' ) ), 320 ),
+					'meta'        => isset( $component['meta'] ) && is_array( $component['meta'] ) ? array_slice( array_map( function ( $value ): string { return $this->truncate( sanitize_text_field( (string) $value ), 160 ); }, $component['meta'] ), 0, 8 ) : array(),
+					'url'         => esc_url_raw( (string) ( $component['url'] ?? '' ) ),
+					'actionLabel' => $this->truncate( sanitize_text_field( (string) ( $component['action_label'] ?? __( 'View', 'adam-bot' ) ) ), 60 ),
+					'actions'     => $this->sanitizeCardActions( $component['actions'] ?? array() ),
+					'download'    => ! empty( $component['download'] ),
+				);
+				if ( 12 === count( $cards ) ) { return $cards; }
+			}
+		}
+		return $cards;
+	}
+
+	/** @param mixed $actions Candidate secondary actions. @return array<int,array<string,string>> */
+	private function sanitizeCardActions( $actions ): array {
+		if ( ! is_array( $actions ) ) { return array(); }
+		$clean = array();
+		foreach ( $actions as $action ) {
+			if ( ! is_array( $action ) ) { continue; }
+			$label = $this->truncate( sanitize_text_field( (string) ( $action['label'] ?? '' ) ), 60 );
+			$url   = esc_url_raw( (string) ( $action['url'] ?? '' ) );
+			if ( '' !== $label && '' !== $url ) { $clean[] = array( 'label' => $label, 'url' => $url ); }
+			if ( 3 === count( $clean ) ) { break; }
+		}
+		return $clean;
 	}
 
 	/** @return array<int, array<string, mixed>> */

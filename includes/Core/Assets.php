@@ -81,6 +81,8 @@ final class Assets {
 					'followUps'         => __( 'Também pode perguntar', 'adam-bot' ),
 					'relatedPages'      => __( 'Páginas relacionadas', 'adam-bot' ),
 					'events'            => __( 'Eventos', 'adam-bot' ),
+					'results'           => __( 'Resultados', 'adam-bot' ),
+					'view'              => __( 'Ver', 'adam-bot' ),
 					'restored'          => __( 'Conversa desta sessão restaurada.', 'adam-bot' ),
 				),
 			)

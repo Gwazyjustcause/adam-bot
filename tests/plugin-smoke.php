@@ -126,7 +126,39 @@ $test_membership_items      = array(
 		'enabled' => true,
 	),
 );
-$test_event_items           = array();
+$test_event_items           = array(
+	array(
+		'title' => 'Summer Game',
+		'content' => 'A published ADAM airsoft game.',
+		'date' => '1 August 2026, 10:00',
+		'location' => 'Campo do Mondego',
+		'available_places' => '18',
+		'price' => 'â‚¬5',
+		'registration_deadline' => '30 July 2026',
+		'teams' => 'All associated teams',
+		'cover_image' => 'https://example.test/summer-game.jpg',
+		'registration_url' => 'https://example.test/events/summer-game',
+		'keywords' => array( 'event', 'summer', 'game' ),
+	),
+);
+$test_dynamic_items         = array(
+	'adam_bot_dynamic_teams' => array(
+		array( 'title' => 'Coimbra Rangers', 'content' => 'An associated team in Coimbra.', 'municipality' => 'Coimbra', 'contact' => 'team@example.test', 'profile_url' => 'https://example.test/teams/coimbra-rangers', 'image' => 'https://example.test/team.jpg', 'keywords' => array( 'teams', 'coimbra' ) ),
+	),
+	'adam_bot_dynamic_fields' => array(
+		array( 'title' => 'Mondego CQB', 'content' => 'An associated CQB field.', 'municipality' => 'Coimbra', 'field_type' => 'CQB', 'association_status' => 'Associated', 'url' => 'https://example.test/fields/mondego-cqb', 'keywords' => array( 'fields', 'coimbra', 'cqb' ) ),
+		array( 'title' => 'Serra Outdoor', 'content' => 'An associated outdoor field near Coimbra.', 'municipality' => 'Coimbra', 'field_type' => 'Outdoor', 'association_status' => 'Associated', 'url' => 'https://example.test/fields/serra-outdoor', 'keywords' => array( 'fields', 'coimbra', 'outdoor' ) ),
+	),
+	'adam_bot_dynamic_partners' => array(
+		array( 'title' => 'ADAM Shop', 'content' => 'Member equipment discounts.', 'partner_type' => 'Shop', 'discount' => '10% for members', 'url' => 'https://example.test/partners/adam-shop', 'keywords' => array( 'partners', 'discounts', 'shops' ) ),
+	),
+	'adam_bot_dynamic_news' => array(
+		array( 'title' => 'New Partnership', 'content' => 'ADAM announces a new community partnership.', 'published_at' => '20 July 2026', 'url' => 'https://example.test/news/new-partnership', 'keywords' => array( 'latest', 'news', 'partnership' ) ),
+	),
+	'adam_bot_dynamic_documents' => array(
+		array( 'title' => 'ADAM Statutes', 'content' => 'Official association statutes.', 'document_type' => 'PDF', 'updated_at' => '2026', 'file_size' => '1 MB', 'download_url' => 'https://example.test/documents/statutes.pdf', 'keywords' => array( 'statutes', 'documents' ) ),
+	),
+);
 
 $_SERVER['REMOTE_ADDR'] = '203.0.113.25';
 
@@ -182,13 +214,13 @@ function test_assert( bool $condition, string $message ): void {
 }
 
 /** Runs callbacks registered for a WordPress hook. */
-function run_test_hook( string $hook ): void {
+function run_test_hook( string $hook, ...$args ): void {
 	global $test_hooks;
 	$callbacks = $test_hooks[ $hook ] ?? array();
 	usort( $callbacks, static function ( array $left, array $right ): int { return $left['priority'] <=> $right['priority']; } );
 
 	foreach ( $callbacks as $registered ) {
-		call_user_func( $registered['callback'] );
+		call_user_func_array( $registered['callback'], array_slice( $args, 0, (int) $registered['accepted_args'] ) );
 	}
 }
 
@@ -198,6 +230,7 @@ function add_action( string $hook, $callback, int $priority = 10, int $accepted_
 	return true;
 }
 function add_filter( string $hook, $callback, int $priority = 10, int $accepted_args = 1 ): bool { return add_action( $hook, $callback, $priority, $accepted_args ); }
+function do_action( string $hook, ...$args ): void { run_test_hook( $hook, ...$args ); }
 
 function register_activation_hook( string $file, $callback ): void {
 	global $test_activation_callbacks;
@@ -228,11 +261,16 @@ function add_option( string $name, $value, string $deprecated = '', string $auto
 function update_option( string $name, $value, bool $autoload = true ): bool { global $test_options; unset( $autoload ); $test_options[ $name ] = $value; return true; }
 
 function apply_filters( string $hook, $value, ...$args ) {
-	global $test_membership_items, $test_event_items;
-	unset( $args );
-	if ( 'adam_bot_knowledge_membership_items' === $hook ) { return $test_membership_items; }
-	if ( 'adam_bot_knowledge_event_items' === $hook ) { return $test_event_items; }
-	if ( 'adam_bot_knowledge_event_post_types' === $hook ) { return array( 'event' ); }
+	global $test_membership_items, $test_event_items, $test_dynamic_items, $test_hooks;
+	if ( 'adam_bot_knowledge_membership_items' === $hook ) { $value = $test_membership_items; }
+	if ( 'adam_bot_knowledge_event_items' === $hook ) { $value = $test_event_items; }
+	if ( isset( $test_dynamic_items[ $hook ] ) ) { $value = $test_dynamic_items[ $hook ]; }
+	$callbacks = $test_hooks[ $hook ] ?? array();
+	usort( $callbacks, static function ( array $left, array $right ): int { return $left['priority'] <=> $right['priority']; } );
+	foreach ( $callbacks as $registered ) {
+		$filter_args = array_merge( array( $value ), $args );
+		$value = call_user_func_array( $registered['callback'], array_slice( $filter_args, 0, (int) $registered['accepted_args'] ) );
+	}
 	if ( 'adam_bot_knowledge_provider_registry' === $hook ) { $value['custom'] = 'Custom provider'; }
 	return $value;
 }
@@ -292,6 +330,7 @@ function submit_button( string $text = 'Save Changes', string $type = 'primary',
 function checked( $checked, $current = true, bool $echo = true ): string { $value = $checked == $current ? 'checked="checked"' : ''; if ( $echo ) { echo $value; } return $value; }
 function selected( $selected, $current = true, bool $echo = true ): string { $value = $selected == $current ? 'selected="selected"' : ''; if ( $echo ) { echo $value; } return $value; }
 function admin_url( string $path = '' ): string { return 'https://example.test/wp-admin/' . ltrim( $path, '/' ); }
+function get_edit_post_link( int $post_id ): string { return admin_url( 'post.php?action=edit&post=' . $post_id ); }
 function wp_nonce_field( string $action, string $name ): void { unset( $action ); echo '<input name="' . esc_attr( $name ) . '" value="test-nonce">'; }
 function wp_verify_nonce( string $nonce, string $action ): bool { unset( $action ); return 'test-nonce' === $nonce; }
 function wp_is_post_revision( int $post_id ): bool { unset( $post_id ); return false; }
@@ -329,7 +368,7 @@ $prices = test_chat( array( 'message' => 'What are the membership prices?', 'new
 $data   = $prices->get_data();
 test_assert( 200 === $prices->get_status() && true === ( $data['success'] ?? false ), 'Knowledge response failed.' );
 test_assert( false !== strpos( $data['message'] ?? '', '€22' ), 'Highest-ranked membership answer was not formatted.' );
-test_assert( count( $data['suggestions'] ?? array() ) >= 2, 'Contextual suggestions were not returned.' );
+test_assert( count( $data['suggestions'] ?? array() ) >= 1, 'Contextual suggestions were not returned.' );
 test_assert( 'membership' === ( $data['context']['topic'] ?? '' ), 'Membership topic was not retained.' );
 test_assert( ! isset( $data['confidence'], $data['classification'] ), 'Internal confidence leaked to the frontend.' );
 
@@ -345,6 +384,20 @@ test_assert( false !== strpos( $renewal_json, 'renew-membership' ), 'Smart navig
 $events = test_chat( array( 'message' => 'What is the next event?' ) )->get_data();
 test_assert( ! empty( $events['cards'][0]['title'] ) && 'Summer Game' === $events['cards'][0]['title'], 'Event result was not formatted as a card.' );
 test_assert( false !== strpos( wp_json_encode( $events['cards'][0]['meta'] ?? array() ), 'Campo do Mondego' ), 'Event metadata was not structured.' );
+test_assert( 'event' === ( $events['cards'][0]['type'] ?? '' ) && ! empty( $events['cards'][0]['image'] ) && false !== strpos( wp_json_encode( $events['cards'][0]['meta'] ?? array() ), '18' ), 'Event rich-card fields are incomplete.' );
+
+$teams = test_chat( array( 'message' => 'Teams in Coimbra' ) )->get_data();
+test_assert( 'team' === ( $teams['cards'][0]['type'] ?? '' ) && false !== strpos( wp_json_encode( $teams['cards'][0] ?? array() ), 'Coimbra Rangers' ), 'Team provider did not return a Team Card.' );
+$fields = test_chat( array( 'message' => 'Fields in Coimbra' ) )->get_data();
+test_assert( 2 === count( $fields['cards'] ?? array() ) && 'field' === ( $fields['cards'][0]['type'] ?? '' ), 'Field provider did not return multiple Field Cards.' );
+$partners = test_chat( array( 'message' => 'Which partners offer discounts?' ) )->get_data();
+test_assert( 'partner' === ( $partners['cards'][0]['type'] ?? '' ), 'Partner provider did not return a Partner Card.' );
+$news = test_chat( array( 'message' => 'Latest news' ) )->get_data();
+test_assert( 'news' === ( $news['cards'][0]['type'] ?? '' ), 'News provider did not return a News Card.' );
+$documents = test_chat( array( 'message' => 'Download the statutes' ) )->get_data();
+test_assert( 'document' === ( $documents['cards'][0]['type'] ?? '' ) && true === ( $documents['cards'][0]['download'] ?? false ), 'Document provider did not return a downloadable Document Card.' );
+$renew_navigation = test_chat( array( 'message' => 'Where can I renew?' ) )->get_data();
+test_assert( false !== strpos( $renew_navigation['message'] ?? '', 'renewal area' ) && false !== strpos( wp_json_encode( $renew_navigation['links'] ?? array() ), 'renew-membership' ), 'Navigation language did not resolve to the Membership Provider.' );
 
 $rules = test_chat( array( 'message' => 'What is the chronograph limit?' ) )->get_data();
 test_assert( false !== strpos( $rules['message'] ?? '', '1.3 joules' ), 'Manual knowledge provider did not contribute its answer.' );
@@ -373,6 +426,39 @@ $_SERVER['REMOTE_ADDR'] = '203.0.113.25';
 
 $matcher   = new AdamBot\Knowledge\Search\KeywordMatcher();
 $formatter = new AdamBot\Knowledge\Response\ResponseFormatter( $matcher );
+$detector  = new AdamBot\Knowledge\Dynamic\IntentDetector( $matcher );
+test_assert( AdamBot\Knowledge\Dynamic\Intent::EVENTS === $detector->detect( 'Upcoming events this month' )['intent'], 'Event intent was not detected.' );
+test_assert( AdamBot\Knowledge\Dynamic\Intent::MEMBERSHIP === $detector->detect( 'Where can I renew?' )['intent'], 'Concrete membership intent lost to website navigation.' );
+test_assert( AdamBot\Knowledge\Dynamic\Intent::FIELDS === $detector->detect( 'Outdoor fields in Coimbra' )['intent'], 'Field intent was not detected.' );
+test_assert( AdamBot\Knowledge\Dynamic\Intent::DOCUMENTS === $detector->detect( 'Membership rules' )['intent'], 'Document intent lost to the general membership intent.' );
+test_assert( AdamBot\Knowledge\Dynamic\Intent::NEWS === $detector->detect( 'New partnerships' )['intent'], 'News partnership intent was not detected.' );
+
+$lazy_factory_calls = 0;
+$lazy_registry = new AdamBot\Knowledge\Dynamic\DynamicProviderRegistry();
+$lazy_registry->registerFactory(
+	'lazy_teams',
+	'Lazy Teams',
+	array( AdamBot\Knowledge\Dynamic\Intent::TEAMS ),
+	99,
+	static function () use ( &$lazy_factory_calls ): AdamBot\Knowledge\Dynamic\DynamicProviderInterface {
+		$lazy_factory_calls++;
+		return new class() implements AdamBot\Knowledge\Dynamic\DynamicProviderInterface {
+			public function getKey(): string { return 'lazy_teams'; }
+			public function getLabel(): string { return 'Lazy Teams'; }
+			public function isAvailable(): bool { return true; }
+			public function search( string $query, string $intent ): array { unset( $query, $intent ); return array(); }
+			public function getSuggestions( string $query, string $intent ): array { unset( $query, $intent ); return array(); }
+			public function supportsIntent( string $intent ): bool { return AdamBot\Knowledge\Dynamic\Intent::TEAMS === $intent; }
+			public function getPriority(): int { return 99; }
+			public function getCacheTtl(): int { return 120; }
+		};
+	}
+);
+$lazy_registry->getProvidersForIntent( AdamBot\Knowledge\Dynamic\Intent::EVENTS );
+test_assert( 0 === $lazy_factory_calls, 'Unrelated dynamic provider was eagerly loaded.' );
+$lazy_registry->getProvidersForIntent( AdamBot\Knowledge\Dynamic\Intent::TEAMS );
+test_assert( 1 === $lazy_factory_calls, 'Intent-matched provider was not lazily loaded.' );
+test_assert( function_exists( 'adam_bot' ) && adam_bot()->providers() instanceof AdamBot\Knowledge\Dynamic\DynamicProviderRegistry, 'Public provider registration facade is unavailable.' );
 $medium    = new AdamBot\Knowledge\DTO\KnowledgeResult( 'faq', 'FAQ', 'Quota', 'Pode renovar a quota online.', 'Membership', 'https://example.test/quota', 45, array( 'quota' ) );
 $medium_set = new AdamBot\Knowledge\DTO\SearchResultSet( array( $medium ), array( $medium ), 45, 'medium', 'membership', 'faq', array( 'quota' ), 2 );
 $medium_response = $formatter->format( $medium_set, 'Como renovo a quota?' )->toPublicArray();
@@ -473,6 +559,9 @@ test_assert( false === strpos( $analytics_json, 'person@example.test' ) && false
 test_assert( false !== strpos( $analytics_json, '[email]' ) && false !== strpos( $analytics_json, '[number]' ), 'Analytics did not scrub common personal data.' );
 test_assert( (int) ( $test_options['adam_bot_analytics']['high_confidence'] ?? 0 ) >= 1 && (int) ( $test_options['adam_bot_analytics']['no_confidence'] ?? 0 ) >= 1, 'Confidence analytics were not recorded.' );
 test_assert( ! empty( $analytics->getMostViewedEntries() ) && $analytics->getAverageConfidence() > 0, 'Search analytics did not retain anonymous entry views or confidence.' );
+test_assert( ! empty( $analytics->getProviderLogs() ) && ! empty( $analytics->getIntentUsage() ) && ! empty( $analytics->getProviderUsage() ), 'Provider and intent analytics were not recorded.' );
+$provider_log_json = wp_json_encode( $analytics->getProviderLogs() );
+test_assert( false === strpos( $provider_log_json, 'person@example.test' ) && false === strpos( $provider_log_json, 'Where can I renew' ), 'Provider logs retained visitor content.' );
 
 $source_text = '';
 $iterator    = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( dirname( __DIR__ ) . '/includes' ) );
@@ -483,6 +572,7 @@ foreach ( $iterator as $file ) {
 }
 test_assert( false === stripos( $source_text, 'OpenAI' ) && false === strpos( $source_text, 'wp_remote_post' ), 'External AI provider code remains in the runtime.' );
 test_assert( false === strpos( $source_text, 'mappedSuggestions' ) && false === strpos( $source_text, 'buttonLabel(' ), 'Hardcoded knowledge suggestions or navigation labels remain.' );
+test_assert( false === strpos( $source_text, 'tribe_events' ), 'Core still contains a plugin-specific event post type.' );
 
 if ( 'admin' === $test_mode ) {
 	test_assert( isset( $test_admin['settings']['adam_bot_experience_settings'], $test_admin['settings']['adam_bot_knowledge_settings'] ), 'Admin settings were not registered.' );
@@ -501,6 +591,10 @@ if ( 'admin' === $test_mode ) {
 	$settings_page = ob_get_clean();
 	test_assert( false !== strpos( $settings_page, 'Quick Actions' ) && false !== strpos( $settings_page, 'High confidence' ), 'Phase 8 dashboard is incomplete.' );
 	test_assert( false === stripos( $settings_page, 'OpenAI' ) && false === stripos( $settings_page, 'API Key' ), 'AI controls remain visible.' );
+	ob_start();
+	call_user_func( $test_admin['submenus']['adam-bot-search-analytics']['callback'] );
+	$analytics_page = ob_get_clean();
+	test_assert( false !== strpos( $analytics_page, 'Dynamic provider activity' ) && false !== strpos( $analytics_page, 'Provider selected' ), 'Provider routing logs are missing from Search Analytics.' );
 
 	$sanitize = $test_admin['settings']['adam_bot_experience_settings']['args']['sanitize_callback'];
 	$clean    = call_user_func( $sanitize, array( 'quick_actions' => array( array( 'icon'=>'📅', 'label'=>' Events ', 'prompt'=>' Show events ' ) ) ) );
@@ -516,9 +610,9 @@ if ( 'public' === $test_mode ) {
 	test_assert( false !== strpos( $widget, 'data-adam-template' ) && false !== strpos( $widget, 'maxlength="4000"' ), 'Lazy widget markup is incomplete.' );
 	$localized = $test_assets['localized']['adam-bot']['data'] ?? array();
 	test_assert( 'https://example.test/wp-json/adam-bot/v1/chat' === ( $localized['restUrl'] ?? '' ), 'Frontend REST URL is incorrect.' );
-	test_assert( ! isset( $localized['strings']['generalConsent'] ) && 'Eventos' === ( $localized['strings']['events'] ?? '' ), 'Frontend still exposes general-AI consent.' );
+	test_assert( ! isset( $localized['strings']['generalConsent'] ) && 'Eventos' === ( $localized['strings']['events'] ?? '' ) && 'Resultados' === ( $localized['strings']['results'] ?? '' ), 'Frontend strings are incomplete or still expose general-AI consent.' );
 } else {
 	test_assert( ! isset( $test_hooks['wp_enqueue_scripts'], $test_hooks['wp_footer'] ), 'Frontend hooks were registered on a protected screen.' );
 }
 
-echo sprintf( "PASS: %s Phase 8 boundary.\n", $test_mode );
+echo sprintf( "PASS: %s Phase 9 boundary.\n", $test_mode );

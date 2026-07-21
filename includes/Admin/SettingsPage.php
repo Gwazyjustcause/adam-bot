@@ -143,6 +143,9 @@ final class SettingsPage {
 			<?php $this->renderQuestionTable( $this->analytics->getLowConfidenceQuestions( 20 ), 'low_confidence_count' ); ?>
 			<h2><?php esc_html_e( 'Most viewed Knowledge entries', 'adam-bot' ); ?></h2>
 			<?php $this->renderEntryTable( $this->analytics->getMostViewedEntries( 20 ) ); ?>
+			<h2><?php esc_html_e( 'Dynamic provider activity', 'adam-bot' ); ?></h2>
+			<p class="description"><?php esc_html_e( 'Recent anonymous routing diagnostics. No visitor identity or conversation transcript is stored.', 'adam-bot' ); ?></p>
+			<?php $this->renderProviderTable( $this->analytics->getProviderLogs( 30 ) ); ?>
 		</div>
 		<?php
 	}
@@ -220,6 +223,21 @@ final class SettingsPage {
 			$title = (string) ( $row['title'] ?? '' );
 			$url   = (int) ( $row['entry_id'] ?? 0 ) > 0 ? get_edit_post_link( (int) $row['entry_id'] ) : '';
 			echo '<tr><td>' . ( $url ? '<a href="' . esc_url( (string) $url ) . '">' . esc_html( $title ) . '</a>' : esc_html( $title ) ) . '</td><td>' . esc_html( (string) ( $row['provider'] ?? '' ) ) . '</td><td>' . esc_html( (string) ( $row['count'] ?? 0 ) ) . '</td></tr>';
+		}
+		echo '</tbody></table>';
+	}
+
+	/** @param array<int,array<string,mixed>> $rows Rows. */
+	private function renderProviderTable( array $rows ): void {
+		if ( empty( $rows ) ) {
+			echo '<p class="description">' . esc_html__( 'No provider searches yet.', 'adam-bot' ) . '</p>';
+			return;
+		}
+
+		echo '<table class="widefat striped" style="max-width:1100px;"><thead><tr><th>' . esc_html__( 'Time (UTC)', 'adam-bot' ) . '</th><th>' . esc_html__( 'Intent', 'adam-bot' ) . '</th><th>' . esc_html__( 'Provider selected', 'adam-bot' ) . '</th><th>' . esc_html__( 'Results', 'adam-bot' ) . '</th><th>' . esc_html__( 'Confidence', 'adam-bot' ) . '</th><th>' . esc_html__( 'Provider time', 'adam-bot' ) . '</th><th>' . esc_html__( 'Fallback', 'adam-bot' ) . '</th></tr></thead><tbody>';
+		foreach ( $rows as $row ) {
+			$provider = (string) ( $row['provider'] ?? '' );
+			echo '<tr><td>' . esc_html( (string) ( $row['timestamp'] ?? '' ) ) . '</td><td><code>' . esc_html( (string) ( $row['intent'] ?? '' ) ) . '</code></td><td>' . esc_html( '' !== $provider ? $provider : __( 'No match', 'adam-bot' ) ) . '</td><td>' . esc_html( (string) ( $row['result_count'] ?? 0 ) ) . '</td><td>' . esc_html( (string) ( $row['confidence'] ?? 0 ) ) . '%</td><td>' . esc_html( (string) ( $row['search_duration_ms'] ?? 0 ) ) . ' ms</td><td>' . esc_html( (string) ( $row['fallback_provider'] ?? '' ) ) . '</td></tr>';
 		}
 		echo '</tbody></table>';
 	}

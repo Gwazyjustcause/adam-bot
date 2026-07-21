@@ -734,6 +734,15 @@
 	overflow-wrap: anywhere;
 }
 
+.adam-bot__knowledge-card-image {
+	display: block;
+	width: calc(100% + 24px);
+	max-height: 160px;
+	margin: -12px -12px 11px;
+	border-radius: 14px 14px 0 0;
+	object-fit: cover;
+}
+
 .adam-bot__knowledge-card + .adam-bot__knowledge-card {
 	margin-top: 7px;
 }
@@ -761,6 +770,7 @@
 
 .adam-bot__knowledge-card .adam-bot__page-link {
 	display: inline-block;
+	margin: 3px 5px 0 0;
 }
 
 .adam-bot__page-link {
@@ -774,6 +784,11 @@
 	font-weight: 750;
 	line-height: 20px;
 	text-decoration: none;
+}
+
+.adam-bot__page-link--secondary {
+	color: var(--adam-accent-strong);
+	background: var(--adam-accent-soft);
 }
 
 .adam-bot__chips {

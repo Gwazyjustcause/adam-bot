@@ -39,6 +39,24 @@ final class SearchResultSet {
 	/** @var int */
 	private $response_time_ms;
 
+	/** @var string */
+	private $intent;
+
+	/** @var int */
+	private $intent_confidence;
+
+	/** @var string */
+	private $fallback_provider;
+
+	/** @var int */
+	private $provider_duration_ms;
+
+	/** @var int */
+	private $provider_result_count;
+
+	/** @var bool */
+	private $dynamic;
+
 	/**
 	 * @param array<int, KnowledgeResult> $results Ranked answer candidates.
 	 * @param array<int, KnowledgeResult> $fallback_results Ranked navigable fallbacks.
@@ -48,6 +66,7 @@ final class SearchResultSet {
 	 * @param string                      $matched_provider Winning provider key.
 	 * @param array<int, string>          $matched_keywords Matched query terms.
 	 * @param int                         $response_time_ms Search time.
+	 * @param array<string,mixed>         $diagnostics Intent and provider diagnostics.
 	 */
 	public function __construct(
 		array $results = array(),
@@ -57,7 +76,8 @@ final class SearchResultSet {
 		string $topic = '',
 		string $matched_provider = '',
 		array $matched_keywords = array(),
-		int $response_time_ms = 0
+		int $response_time_ms = 0,
+		array $diagnostics = array()
 	) {
 		$this->results            = $this->filterResults( $results );
 		$this->fallback_results   = $this->filterResults( $fallback_results );
@@ -67,6 +87,12 @@ final class SearchResultSet {
 		$this->matched_provider   = sanitize_key( $matched_provider );
 		$this->matched_keywords   = array_values( array_unique( array_map( 'sanitize_key', $matched_keywords ) ) );
 		$this->response_time_ms   = max( 0, $response_time_ms );
+		$this->intent             = sanitize_key( (string) ( $diagnostics['intent'] ?? 'knowledge_question' ) );
+		$this->intent_confidence  = max( 0, min( 100, (int) ( $diagnostics['intent_confidence'] ?? 0 ) ) );
+		$this->fallback_provider  = sanitize_key( (string) ( $diagnostics['fallback_provider'] ?? '' ) );
+		$this->provider_duration_ms = max( 0, (int) ( $diagnostics['provider_duration_ms'] ?? 0 ) );
+		$this->provider_result_count = max( 0, (int) ( $diagnostics['provider_result_count'] ?? count( $this->results ) ) );
+		$this->dynamic            = ! empty( $diagnostics['dynamic'] );
 	}
 
 	/** @return array<int, KnowledgeResult> */
@@ -119,6 +145,13 @@ final class SearchResultSet {
 		return $this->response_time_ms;
 	}
 
+	public function getIntent(): string { return $this->intent; }
+	public function getIntentConfidence(): int { return $this->intent_confidence; }
+	public function getFallbackProvider(): string { return $this->fallback_provider; }
+	public function getProviderDurationMs(): int { return $this->provider_duration_ms; }
+	public function getProviderResultCount(): int { return $this->provider_result_count; }
+	public function isDynamic(): bool { return $this->dynamic; }
+
 	/** @return array<string, mixed> */
 	public function toArray(): array {
 		return array(
@@ -130,6 +163,14 @@ final class SearchResultSet {
 			'matched_provider'   => $this->matched_provider,
 			'matched_keywords'   => $this->matched_keywords,
 			'response_time_ms'   => $this->response_time_ms,
+			'diagnostics'        => array(
+				'intent'                => $this->intent,
+				'intent_confidence'     => $this->intent_confidence,
+				'fallback_provider'     => $this->fallback_provider,
+				'provider_duration_ms'  => $this->provider_duration_ms,
+				'provider_result_count' => $this->provider_result_count,
+				'dynamic'               => $this->dynamic,
+			),
 		);
 	}
 
@@ -143,7 +184,8 @@ final class SearchResultSet {
 			(string) ( $data['topic'] ?? '' ),
 			(string) ( $data['matched_provider'] ?? '' ),
 			isset( $data['matched_keywords'] ) && is_array( $data['matched_keywords'] ) ? $data['matched_keywords'] : array(),
-			$response_time_ms
+			$response_time_ms,
+			isset( $data['diagnostics'] ) && is_array( $data['diagnostics'] ) ? $data['diagnostics'] : array()
 		);
 	}
 

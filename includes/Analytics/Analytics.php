@@ -21,6 +21,12 @@ final class Analytics {
 	/** Maximum distinct aggregate question records. */
 	private const MAX_QUESTIONS = 500;
 
+	/** Maximum recent anonymous provider diagnostics. */
+	private const MAX_PROVIDER_LOGS = 1000;
+
+	/** Maximum daily trend buckets retained. */
+	private const MAX_DAYS = 180;
+
 	/**
 	 * Returns normalized counters.
 	 *
@@ -38,6 +44,12 @@ final class Analytics {
 
 		$data['questions'] = isset( $data['questions'] ) && is_array( $data['questions'] ) ? $data['questions'] : array();
 		$data['entry_views'] = isset( $data['entry_views'] ) && is_array( $data['entry_views'] ) ? $data['entry_views'] : array();
+		$data['provider_usage'] = isset( $data['provider_usage'] ) && is_array( $data['provider_usage'] ) ? $data['provider_usage'] : array();
+		$data['intent_usage'] = isset( $data['intent_usage'] ) && is_array( $data['intent_usage'] ) ? $data['intent_usage'] : array();
+		$data['provider_logs'] = isset( $data['provider_logs'] ) && is_array( $data['provider_logs'] ) ? array_slice( $data['provider_logs'], 0, self::MAX_PROVIDER_LOGS ) : array();
+		$data['daily'] = isset( $data['daily'] ) && is_array( $data['daily'] ) ? array_slice( $data['daily'], -self::MAX_DAYS, null, true ) : array();
+		$data['category_usage'] = isset( $data['category_usage'] ) && is_array( $data['category_usage'] ) ? $data['category_usage'] : array();
+		$data['keyword_usage'] = isset( $data['keyword_usage'] ) && is_array( $data['keyword_usage'] ) ? $data['keyword_usage'] : array();
 		$data['total_confidence'] = max( 0, (int) ( $data['total_confidence'] ?? 0 ) );
 
 		return $data;
@@ -57,6 +69,12 @@ final class Analytics {
 			'no_confidence'          => 0,
 			'questions'              => array(),
 			'entry_views'            => array(),
+			'provider_usage'         => array(),
+			'intent_usage'           => array(),
+			'provider_logs'          => array(),
+			'daily'                  => array(),
+			'category_usage'         => array(),
+			'keyword_usage'          => array(),
 			'total_confidence'       => 0,
 		);
 	}
@@ -74,6 +92,13 @@ final class Analytics {
 	 * @param int    $entry_id Matched knowledge object ID when available.
 	 * @param string $entry_title Matched entry title.
 	 * @param string $provider Matched provider key.
+	 * @param string $intent Detected intent.
+	 * @param string $fallback_provider Fallback provider key when used.
+	 * @param int    $provider_result_count Results returned by the selected live provider.
+	 * @param int    $provider_duration_ms Live provider search duration.
+	 * @param bool   $dynamic Whether the winning response came from a dynamic provider.
+	 * @param string $category Matched public category.
+	 * @param array<int,string> $matched_keywords Matched normalized keywords.
 	 * @return void
 	 */
 	public function record(
@@ -86,7 +111,14 @@ final class Analytics {
 		int $confidence = 0,
 		int $entry_id = 0,
 		string $entry_title = '',
-		string $provider = ''
+		string $provider = '',
+		string $intent = 'knowledge_question',
+		string $fallback_provider = '',
+		int $provider_result_count = 0,
+		int $provider_duration_ms = 0,
+		bool $dynamic = false,
+		string $category = '',
+		array $matched_keywords = array()
 	): void {
 		$data = $this->all();
 
@@ -122,6 +154,63 @@ final class Analytics {
 				$data['entry_views'] = array_slice( $data['entry_views'], 0, 500, true );
 			}
 		}
+
+		$provider_key = sanitize_key( $provider );
+		$intent_key   = sanitize_key( $intent );
+		$fallback_key = sanitize_key( $fallback_provider );
+		$category_key = sanitize_key( $category );
+		$keywords     = array_slice( array_values( array_unique( array_filter( array_map( 'sanitize_key', $matched_keywords ) ) ) ), 0, 12 );
+		if ( '' !== $provider_key ) {
+			$data['provider_usage'][ $provider_key ] = (int) ( $data['provider_usage'][ $provider_key ] ?? 0 ) + 1;
+		}
+		if ( '' !== $intent_key ) {
+			$data['intent_usage'][ $intent_key ] = (int) ( $data['intent_usage'][ $intent_key ] ?? 0 ) + 1;
+		}
+		if ( '' !== $category_key ) {
+			$data['category_usage'][ $category_key ] = (int) ( $data['category_usage'][ $category_key ] ?? 0 ) + 1;
+		}
+		foreach ( $keywords as $keyword ) {
+			$data['keyword_usage'][ $keyword ] = (int) ( $data['keyword_usage'][ $keyword ] ?? 0 ) + 1;
+		}
+
+		$day = gmdate( 'Y-m-d' );
+		if ( ! isset( $data['daily'][ $day ] ) ) {
+			$data['daily'][ $day ] = array(
+				'questions' => 0, 'answered' => 0, 'unanswered' => 0, 'confidence_total' => 0,
+				'response_time_total' => 0, 'providers' => array(), 'categories' => array(),
+			);
+		}
+		$data['daily'][ $day ]['questions']++;
+		$data['daily'][ $day ]['answered'] += $knowledge_hit ? 1 : 0;
+		$data['daily'][ $day ]['unanswered'] += 'none' === $classification ? 1 : 0;
+		$data['daily'][ $day ]['confidence_total'] += max( 0, min( 100, $confidence ) );
+		$data['daily'][ $day ]['response_time_total'] += max( 0, $response_time_ms );
+		if ( '' !== $provider_key ) {
+			$data['daily'][ $day ]['providers'][ $provider_key ] = (int) ( $data['daily'][ $day ]['providers'][ $provider_key ] ?? 0 ) + 1;
+		}
+		if ( '' !== $category_key ) {
+			$data['daily'][ $day ]['categories'][ $category_key ] = (int) ( $data['daily'][ $day ]['categories'][ $category_key ] ?? 0 ) + 1;
+		}
+		$data['daily'] = array_slice( $data['daily'], -self::MAX_DAYS, null, true );
+		array_unshift(
+			$data['provider_logs'],
+			array(
+				'timestamp'            => gmdate( 'c' ),
+				'provider'             => $provider_key,
+				'intent'               => $intent_key,
+				'search_duration_ms'   => max( 0, $provider_duration_ms ),
+				'result_count'         => max( 0, $provider_result_count ),
+				'confidence'           => max( 0, min( 100, $confidence ) ),
+				'fallback_provider'    => $fallback_key,
+				'dynamic'              => $dynamic,
+				'response_time_ms'     => max( 0, $response_time_ms ),
+				'category'             => $category_key,
+				'keywords'             => $keywords,
+				'success'              => $knowledge_hit,
+				'unanswered'           => 'none' === $classification,
+			)
+		);
+		$data['provider_logs'] = array_slice( $data['provider_logs'], 0, self::MAX_PROVIDER_LOGS );
 
 		update_option( self::OPTION_KEY, $data, false );
 	}
@@ -159,6 +248,86 @@ final class Analytics {
 		$rows = array_values( $this->all()['entry_views'] );
 		usort( $rows, static function ( array $left, array $right ): int { return (int) ( $right['count'] ?? 0 ) <=> (int) ( $left['count'] ?? 0 ); } );
 		return array_slice( $rows, 0, max( 1, $limit ) );
+	}
+
+	/** @return array<string,int> */
+	public function getProviderUsage(): array {
+		$usage = $this->all()['provider_usage'];
+		arsort( $usage, SORT_NUMERIC );
+		return $usage;
+	}
+
+	/** @return array<string,int> */
+	public function getIntentUsage(): array {
+		$usage = $this->all()['intent_usage'];
+		arsort( $usage, SORT_NUMERIC );
+		return $usage;
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	public function getProviderLogs( int $limit = 20 ): array {
+		return array_slice( $this->all()['provider_logs'], 0, max( 1, $limit ) );
+	}
+
+	/** @return array<string,int> */
+	public function getCategoryUsage(): array {
+		$usage = $this->all()['category_usage'];
+		arsort( $usage, SORT_NUMERIC );
+		return $usage;
+	}
+
+	/** @return array<string,int> */
+	public function getKeywordUsage(): array {
+		$usage = $this->all()['keyword_usage'];
+		arsort( $usage, SORT_NUMERIC );
+		return $usage;
+	}
+
+	/** @return array<string,int> */
+	public function getConfidenceDistribution(): array {
+		$data = $this->all();
+		return array(
+			'high'   => (int) $data['high_confidence'],
+			'medium' => (int) $data['medium_confidence'],
+			'low'    => (int) $data['low_confidence'],
+			'none'   => (int) $data['no_confidence'],
+		);
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	public function getDailySeries( int $days = 30 ): array {
+		$days = max( 7, min( self::MAX_DAYS, $days ) );
+		$daily = $this->all()['daily'];
+		$rows = array();
+		for ( $offset = $days - 1; $offset >= 0; $offset-- ) {
+			$date = gmdate( 'Y-m-d', time() - ( $offset * DAY_IN_SECONDS ) );
+			$row = isset( $daily[ $date ] ) && is_array( $daily[ $date ] ) ? $daily[ $date ] : array();
+			$questions = max( 0, (int) ( $row['questions'] ?? 0 ) );
+			$rows[] = array(
+				'date'             => $date,
+				'questions'        => $questions,
+				'answered'         => max( 0, (int) ( $row['answered'] ?? 0 ) ),
+				'unanswered'       => max( 0, (int) ( $row['unanswered'] ?? 0 ) ),
+				'confidence'       => (int) round( (int) ( $row['confidence_total'] ?? 0 ) / max( 1, $questions ) ),
+				'response_time_ms' => (int) round( (int) ( $row['response_time_total'] ?? 0 ) / max( 1, $questions ) ),
+			);
+		}
+		return $rows;
+	}
+
+	/** Removes analytics outside the retention window and returns removed rows. */
+	public function prune(): int {
+		$data = $this->all();
+		$before = count( $data['provider_logs'] ) + count( $data['daily'] );
+		$cutoff = time() - ( self::MAX_DAYS * DAY_IN_SECONDS );
+		$data['provider_logs'] = array_values( array_filter( $data['provider_logs'], static function ( array $row ) use ( $cutoff ): bool {
+			return strtotime( (string) ( $row['timestamp'] ?? '' ) ) >= $cutoff;
+		} ) );
+		$data['daily'] = array_filter( $data['daily'], static function ( string $date ) use ( $cutoff ): bool {
+			return strtotime( $date . ' 23:59:59 UTC' ) >= $cutoff;
+		}, ARRAY_FILTER_USE_KEY );
+		update_option( self::OPTION_KEY, $data, false );
+		return max( 0, $before - count( $data['provider_logs'] ) - count( $data['daily'] ) );
 	}
 
 	public function getAverageConfidence(): int {
@@ -219,6 +388,7 @@ final class Analytics {
 			$data['questions'][ $key ]['response_time_total'] = (int) ( $data['questions'][ $key ]['response_time_total'] ?? 0 ) + max( 0, $response_time_ms );
 			$data['questions'][ $key ]['no_answer_count'] = (int) ( $data['questions'][ $key ]['no_answer_count'] ?? 0 ) + ( 'none' === $classification ? 1 : 0 );
 			$data['questions'][ $key ]['low_confidence_count'] = (int) ( $data['questions'][ $key ]['low_confidence_count'] ?? 0 ) + ( 'low' === $classification ? 1 : 0 );
+			$data['questions'][ $key ]['last_asked'] = gmdate( 'c' );
 			return;
 		}
 
@@ -232,6 +402,8 @@ final class Analytics {
 			'entry_id'            => max( 0, $entry_id ),
 			'entry_title'         => $this->truncate( sanitize_text_field( $entry_title ), 140 ),
 			'provider'            => sanitize_key( $provider ),
+			'first_asked'         => gmdate( 'c' ),
+			'last_asked'          => gmdate( 'c' ),
 		);
 
 		if ( count( $data['questions'] ) <= self::MAX_QUESTIONS ) {

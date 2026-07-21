@@ -592,13 +592,21 @@
 			const title = document.createElement( 'p' );
 			region.className = 'adam-bot__knowledge-cards';
 			title.className = 'adam-bot__meta-title';
-			title.textContent = this.strings.events || 'Eventos';
+			title.textContent = clean[ 0 ].groupLabel || this.strings.results || 'Resultados';
 			region.appendChild( title );
 
 			clean.forEach( ( cardData ) => {
 				const card = document.createElement( 'article' );
 				const heading = document.createElement( 'h4' );
-				card.className = 'adam-bot__knowledge-card';
+				card.className = `adam-bot__knowledge-card adam-bot__knowledge-card--${ cardData.type }`;
+				if ( cardData.image ) {
+					const image = document.createElement( 'img' );
+					image.className = 'adam-bot__knowledge-card-image';
+					image.src = cardData.image;
+					image.alt = '';
+					image.loading = 'lazy';
+					card.appendChild( image );
+				}
 				heading.textContent = cardData.title;
 				card.appendChild( heading );
 
@@ -624,9 +632,19 @@
 					link.className = 'adam-bot__page-link';
 					link.href = cardData.url;
 					link.rel = 'noopener noreferrer';
+					if ( cardData.download ) link.setAttribute( 'download', '' );
 					link.textContent = `${ cardData.actionLabel } →`;
 					card.appendChild( link );
 				}
+
+				cardData.actions.forEach( ( action ) => {
+					const link = document.createElement( 'a' );
+					link.className = 'adam-bot__page-link adam-bot__page-link--secondary';
+					link.href = action.url;
+					link.rel = 'noopener noreferrer';
+					link.textContent = `${ action.label } →`;
+					card.appendChild( link );
+				} );
 
 				region.appendChild( card );
 			} );
@@ -667,7 +685,7 @@
 				return [];
 			}
 
-			return links.slice( 0, 3 ).reduce( ( clean, link ) => {
+			return links.slice( 0, 4 ).reduce( ( clean, link ) => {
 				const safeUrl = getSafeUrl( link && link.url );
 				if ( ! safeUrl ) {
 					return clean;
@@ -687,19 +705,31 @@
 				return [];
 			}
 
-			return cards.slice( 0, 3 ).reduce( ( clean, card ) => {
+			return cards.slice( 0, 12 ).reduce( ( clean, card ) => {
 				const title = String( card && card.title || '' ).trim().slice( 0, 100 );
 				if ( ! title ) {
 					return clean;
 				}
 
 				const safeUrl = getSafeUrl( card.url );
+				const safeImage = getSafeUrl( card.image );
+				const actions = Array.isArray( card.actions ) ? card.actions.slice( 0, 3 ).reduce( ( values, action ) => {
+					const actionUrl = getSafeUrl( action && action.url );
+					const actionLabel = String( action && action.label || '' ).trim().slice( 0, 50 );
+					if ( actionUrl && actionLabel ) values.push( { label: actionLabel, url: actionUrl.href } );
+					return values;
+				}, [] ) : [];
 				clean.push( {
+					type: String( card.type || 'result' ).replace( /[^a-z0-9_-]/gi, '' ).slice( 0, 30 ) || 'result',
+					groupLabel: String( card.groupLabel || this.strings.results || 'Resultados' ).slice( 0, 80 ),
+					image: safeImage ? safeImage.href : '',
 					title,
 					description: String( card.description || '' ).trim().slice( 0, 220 ),
-					meta: Array.isArray( card.meta ) ? card.meta.slice( 0, 3 ).map( ( value ) => String( value ).slice( 0, 100 ) ) : [],
+					meta: Array.isArray( card.meta ) ? card.meta.slice( 0, 8 ).map( ( value ) => String( value ).slice( 0, 100 ) ) : [],
 					url: safeUrl ? safeUrl.href : '',
-					actionLabel: String( card.actionLabel || 'Ver evento' ).slice( 0, 50 ),
+					actionLabel: String( card.actionLabel || this.strings.view || 'Ver' ).slice( 0, 50 ),
+					actions,
+					download: card.download === true,
 				} );
 				return clean;
 			}, [] );

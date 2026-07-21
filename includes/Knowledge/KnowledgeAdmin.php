@@ -404,7 +404,7 @@ final class KnowledgeAdmin {
 			$this->settings->bumpCacheVersion();
 			return;
 		}
-		$event_types = apply_filters( 'adam_bot_knowledge_event_post_types', array( 'event', 'events', 'tribe_events' ) );
+		$event_types = apply_filters( 'adam_bot_knowledge_event_post_types', array() );
 		$event_types = is_array( $event_types ) ? array_map( 'sanitize_key', $event_types ) : array();
 		if ( in_array( $post->post_type, array_merge( array( FAQSource::POST_TYPE, ManualSource::POST_TYPE ), $event_types ), true ) ) {
 			$this->settings->bumpCacheVersion();

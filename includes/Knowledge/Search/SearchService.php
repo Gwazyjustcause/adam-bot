@@ -14,6 +14,8 @@ use AdamBot\Knowledge\DTO\KnowledgeResult;
 use AdamBot\Knowledge\DTO\SearchResultSet;
 use AdamBot\Knowledge\KnowledgeProviderInterface;
 use AdamBot\Knowledge\KnowledgeSettings;
+use AdamBot\Knowledge\Dynamic\ProviderResolver;
+use AdamBot\Knowledge\Dynamic\DynamicSearchResult;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -45,25 +47,31 @@ final class SearchService {
 	/** @var array<int, KnowledgeProviderInterface> */
 	private $providers;
 
+	/** @var ProviderResolver|null */
+	private $provider_resolver;
+
 	/**
 	 * @param KnowledgeSettings                      $settings Knowledge settings.
 	 * @param ResultRanker                           $ranker Central ranker.
 	 * @param KeywordMatcher                         $matcher Text normalizer.
 	 * @param Logger                                 $logger Structured logger.
-	 * @param array<int, KnowledgeProviderInterface> $providers Registered providers.
+	 * @param array<int, KnowledgeProviderInterface> $providers Registered static providers.
+	 * @param ProviderResolver|null                  $provider_resolver Intent-aware live provider resolver.
 	 */
 	public function __construct(
 		KnowledgeSettings $settings,
 		ResultRanker $ranker,
 		KeywordMatcher $matcher,
 		Logger $logger,
-		array $providers
+		array $providers,
+		?ProviderResolver $provider_resolver = null
 	) {
 		$this->settings  = $settings;
 		$this->ranker    = $ranker;
 		$this->matcher   = $matcher;
 		$this->logger    = $logger;
 		$this->providers = $this->filterProviders( $providers );
+		$this->provider_resolver = $provider_resolver;
 	}
 
 	/**
@@ -85,9 +93,9 @@ final class SearchService {
 		}
 
 		$cache_key = 'adam_bot_response_' . $this->settings->getCacheVersion() . '_' . md5(
-			$this->matcher->normalize( $resolved_query ) . '|' . $topic . '|' . implode( ',', $recent_result_ids )
+			$this->matcher->normalize( $resolved_query ) . '|' . $topic . '|' . implode( ',', $recent_result_ids ) . '|' . ( $this->provider_resolver ? $this->provider_resolver->getCacheSignature() : 'static' )
 		);
-		$cached    = get_transient( $cache_key );
+		$cached    = $this->cacheGet( $cache_key );
 
 		if ( is_array( $cached ) ) {
 			$result = SearchResultSet::fromArray( $cached, $this->elapsedMilliseconds( $started_at ) );
@@ -95,9 +103,14 @@ final class SearchService {
 			return $result;
 		}
 
-		$candidates        = array();
+		$dynamic           = $this->provider_resolver ? $this->provider_resolver->search( $resolved_query ) : new DynamicSearchResult( array(), 'knowledge_question', 0 );
+		$candidates        = $dynamic->getResults();
 		$enabled_providers = 0;
-		$providers         = apply_filters( 'adam_bot_knowledge_providers', $this->providers, $query );
+		$dynamic_ranked    = $this->ranker->rank( $resolved_query, $candidates, $topic, $recent_result_ids );
+		$dynamic_score     = isset( $dynamic_ranked[0] ) ? $dynamic_ranked[0]->getScore() : 0;
+		// A relevant live response can be used without loading the static corpus.
+		// Static entries remain eligible when the live provider has no solid match.
+		$providers         = $dynamic_score >= 35 ? array() : apply_filters( 'adam_bot_knowledge_providers', $this->providers, $query );
 		$providers         = $this->filterProviders( is_array( $providers ) ? $providers : $this->providers );
 
 		foreach ( $providers as $provider ) {
@@ -140,6 +153,7 @@ final class SearchService {
 		$confidence = $top instanceof KnowledgeResult ? $top->getScore() : 0;
 		$topic      = $this->inferTopic( $query, $top, $topic );
 		$fallbacks  = $this->fallbackResults( $ranked );
+		$dynamic_selected = $top instanceof KnowledgeResult && '' !== $dynamic->getSelectedProvider() && $dynamic->getSelectedProvider() === $top->getSource();
 		$result     = new SearchResultSet(
 			$relevant,
 			$fallbacks,
@@ -148,10 +162,18 @@ final class SearchService {
 			$topic,
 			$top instanceof KnowledgeResult ? $top->getSource() : '',
 			$top instanceof KnowledgeResult ? $top->getMatchedKeywords() : array(),
-			$this->elapsedMilliseconds( $started_at )
+			$this->elapsedMilliseconds( $started_at ),
+			array(
+				'intent'                => $dynamic->getIntent(),
+				'intent_confidence'     => $dynamic->getIntentConfidence(),
+				'fallback_provider'     => $dynamic->getFallbackProvider(),
+				'provider_duration_ms'  => $dynamic->getDurationMs(),
+				'provider_result_count' => count( $dynamic->getResults() ),
+				'dynamic'               => $dynamic_selected,
+			)
 		);
 
-		set_transient( $cache_key, $result->toArray(), self::CACHE_TTL );
+		$this->cacheSet( $cache_key, $result->toArray(), $result->isDynamic() ? $dynamic->getCacheTtl() : self::CACHE_TTL );
 
 		$this->logger->info(
 			'Knowledge response search completed.',
@@ -165,6 +187,11 @@ final class SearchService {
 				'confidence_level'  => $result->getConfidenceLevel(),
 				'response_time_ms'  => $result->getResponseTimeMs(),
 				'cache_hit'         => false,
+				'intent'            => $result->getIntent(),
+				'intent_confidence' => $result->getIntentConfidence(),
+				'result_count'      => $result->getProviderResultCount(),
+				'fallback_provider' => $result->getFallbackProvider(),
+				'dynamic'           => $result->isDynamic(),
 			)
 		);
 
@@ -292,6 +319,11 @@ final class SearchService {
 				'confidence_level' => $result->getConfidenceLevel(),
 				'response_time_ms' => $result->getResponseTimeMs(),
 				'cache_hit'        => $cache_hit,
+				'intent'           => $result->getIntent(),
+				'intent_confidence'=> $result->getIntentConfidence(),
+				'result_count'     => $result->getProviderResultCount(),
+				'fallback_provider'=> $result->getFallbackProvider(),
+				'dynamic'          => $result->isDynamic(),
 			)
 		);
 	}
@@ -299,5 +331,23 @@ final class SearchService {
 	/** @return int */
 	private function elapsedMilliseconds( float $started_at ): int {
 		return (int) round( ( microtime( true ) - $started_at ) * 1000 );
+	}
+
+	/** @return mixed */
+	private function cacheGet( string $key ) {
+		if ( function_exists( 'wp_cache_get' ) ) {
+			$found = false;
+			$value = wp_cache_get( $key, 'adam_bot', false, $found );
+			if ( $found ) { return $value; }
+		}
+		return get_transient( $key );
+	}
+
+	/** @param mixed $value Cached value. */
+	private function cacheSet( string $key, $value, int $ttl ): void {
+		if ( function_exists( 'wp_cache_set' ) ) {
+			wp_cache_set( $key, $value, 'adam_bot', $ttl );
+		}
+		set_transient( $key, $value, $ttl );
 	}
 }

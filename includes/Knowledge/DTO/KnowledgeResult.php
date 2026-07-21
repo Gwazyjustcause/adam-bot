@@ -63,6 +63,9 @@ final class KnowledgeResult {
 	/** @var int */
 	private $object_id;
 
+	/** @var array<int, array<string, mixed>> */
+	private $components;
+
 	/**
 	 * Creates a knowledge result.
 	 *
@@ -111,6 +114,7 @@ final class KnowledgeResult {
 		$this->response_blocks  = isset( $attributes['response_blocks'] ) && is_array( $attributes['response_blocks'] ) ? $attributes['response_blocks'] : array();
 		$this->related          = $this->sanitizeRelated( $attributes['related'] ?? array() );
 		$this->object_id        = max( 0, (int) ( $attributes['object_id'] ?? 0 ) );
+		$this->components       = isset( $attributes['components'] ) && is_array( $attributes['components'] ) ? array_values( array_filter( $attributes['components'], 'is_array' ) ) : array();
 	}
 
 	/** @return string */
@@ -193,6 +197,11 @@ final class KnowledgeResult {
 		return $this->object_id;
 	}
 
+	/** @return array<int, array<string, mixed>> */
+	public function getComponents(): array {
+		return $this->components;
+	}
+
 	/** @return string */
 	public function getId(): string {
 		return md5( $this->source . '|' . $this->title . '|' . $this->url );
@@ -218,6 +227,13 @@ final class KnowledgeResult {
 			$this->priority,
 			$this->attributes()
 		);
+	}
+
+	/** @param array<int,array<string,string>> $related Provider follow-up questions. */
+	public function withRelated( array $related ): self {
+		$attributes            = $this->attributes();
+		$attributes['related'] = $related;
+		return new self( $this->source, $this->source_label, $this->title, $this->content, $this->category, $this->url, $this->score, $this->matched_keywords, $this->priority, $attributes );
 	}
 
 	/**
@@ -271,6 +287,7 @@ final class KnowledgeResult {
 			'response_blocks' => $this->response_blocks,
 			'related'         => $this->related,
 			'object_id'       => $this->object_id,
+			'components'      => $this->components,
 		);
 	}
 
