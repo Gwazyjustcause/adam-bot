@@ -267,7 +267,11 @@
 			this.isBusy = false;
 			this.typingMessage = null;
 			this.lastSubmission = { message: '', time: 0 };
+			this.lastUserMessage = '';
+			this.conversationGeneration = 0;
+			this.currentLanguage = this.getDefaultLanguage();
 			this.state = this.readState();
+			this.currentLanguage = this.state.context.language || this.currentLanguage;
 		}
 
 		init() {
@@ -304,6 +308,8 @@
 			this.root.appendChild( this.template.content.cloneNode( true ) );
 			this.panel = this.root.querySelector( '[data-adam-panel]' );
 			this.closeButton = this.root.querySelector( '[data-adam-close]' );
+			this.homeButtons = this.root.querySelectorAll( '[data-adam-home]' );
+			this.newConversationButton = this.root.querySelector( '[data-adam-new-conversation]' );
 			this.backdrop = this.root.querySelector( '[data-adam-backdrop]' );
 			this.conversation = this.root.querySelector( '[data-adam-conversation]' );
 			this.messages = this.root.querySelector( '[data-adam-messages]' );
@@ -313,6 +319,8 @@
 			this.input = this.root.querySelector( '[data-adam-input]' );
 			this.sendButton = this.root.querySelector( '[data-adam-send]' );
 			this.status = this.root.querySelector( '[data-adam-status]' );
+			this.topics = this.root.querySelector( '[data-adam-topics]' );
+			this.toolbar = this.root.querySelector( '[data-adam-toolbar]' );
 			this.panel.setAttribute( 'inert', '' );
 
 			this.closeButton.addEventListener( 'click', () => this.close() );
@@ -395,6 +403,18 @@
 		}
 
 		handleAction( event ) {
+			const home = event.target.closest( '[data-adam-home]' );
+			if ( home && this.root.contains( home ) ) {
+				this.resetConversation( 'home' );
+				return;
+			}
+
+			const newConversation = event.target.closest( '[data-adam-new-conversation]' );
+			if ( newConversation && this.root.contains( newConversation ) ) {
+				this.resetConversation( 'input' );
+				return;
+			}
+
 			const target = event.target.closest( '[data-adam-message], [data-adam-action]' );
 
 			if ( ! target || ! this.root.contains( target ) || this.isBusy ) {
@@ -454,7 +474,11 @@
 			}
 
 			this.lastSubmission = { message, time: now };
+			this.lastUserMessage = message;
 			const context = this.getKnowledgeContext();
+			const generation = this.conversationGeneration;
+			this.currentLanguage = this.detectLanguage( message );
+			this.updateLanguage( this.currentLanguage );
 			const newConversation = ! this.state.conversationStarted;
 			const cacheKey = this.createCacheKey( message, context );
 			const cached = this.getCachedResponse( cacheKey );
@@ -474,9 +498,13 @@
 					if ( cacheableReply && typeof cacheableReply === 'object' ) delete cacheableReply.debug;
 					this.cacheResponse( cacheKey, cacheableReply );
 				}
-				this.finishResponse( reply );
+				if ( generation === this.conversationGeneration ) {
+					this.finishResponse( reply );
+				}
 			} catch ( error ) {
-				this.finishResponse( { message: this.strings.error || 'Não foi possível responder neste momento.' } );
+				if ( generation === this.conversationGeneration ) {
+					this.finishResponse( { message: this.strings.error || 'Não foi possível responder neste momento.' } );
+				}
 			}
 		}
 
@@ -489,11 +517,17 @@
 			this.removeTyping();
 			if ( response.context && typeof response.context === 'object' ) {
 				this.state.context = this.normalizeContext( response.context );
+			} else {
+				this.state.context = { ...this.getKnowledgeContext(), language: this.currentLanguage };
 			}
+			this.currentLanguage = this.state.context.language || this.currentLanguage;
+			this.updateLanguage( this.currentLanguage );
+			const suggestions = this.buildResponseSuggestions( response.suggestions );
 			this.appendMessage( message, 'bot', {
 				links: response.links,
 				cards: response.cards,
-				suggestions: response.suggestions,
+				suggestions,
+				language: this.currentLanguage,
 				debug: response.debug,
 			} );
 			this.setBusy( false );
@@ -531,7 +565,7 @@
 			content.append( label, bubble );
 			this.appendCards( content, options.cards );
 			this.appendLinks( content, options.links );
-			this.appendSuggestions( content, options.suggestions );
+			this.appendSuggestions( content, options.suggestions, options.language || this.currentLanguage );
 			this.appendDebug( content, options.debug );
 			item.appendChild( content );
 			this.messages.appendChild( item );
@@ -543,6 +577,7 @@
 					links: this.normalizeLinks( options.links ),
 					cards: this.normalizeCards( options.cards ),
 					suggestions: this.normalizeSuggestions( options.suggestions ),
+					language: options.language === 'en' ? 'en' : 'pt',
 				} );
 				this.state.messages = this.state.messages.slice( -MAX_MESSAGES );
 				this.persistState();
@@ -691,7 +726,7 @@
 			content.appendChild( region );
 		}
 
-		appendSuggestions( content, suggestions ) {
+		appendSuggestions( content, suggestions, language = 'pt' ) {
 			const clean = this.normalizeSuggestions( suggestions );
 			if ( ! clean.length ) {
 				return;
@@ -702,8 +737,12 @@
 			const chips = document.createElement( 'div' );
 			region.className = 'adam-bot__follow-ups';
 			title.className = 'adam-bot__meta-title';
-			title.textContent = this.strings.followUps || 'Também pode perguntar';
+			title.textContent = language === 'en'
+				? ( this.strings.followUpsEn || 'You may also be looking for:' )
+				: ( this.strings.followUps || 'Também poderá estar à procura de:' );
 			chips.className = 'adam-bot__chips';
+			region.setAttribute( 'role', 'group' );
+			region.setAttribute( 'aria-label', title.textContent );
 
 			clean.forEach( ( suggestion ) => {
 				const button = document.createElement( 'button' );
@@ -779,7 +818,7 @@
 				return [];
 			}
 
-			return suggestions.slice( 0, 4 ).reduce( ( clean, suggestion ) => {
+			return suggestions.slice( 0, 6 ).reduce( ( clean, suggestion ) => {
 				const label = String( suggestion && suggestion.label || '' ).trim().slice( 0, 100 );
 				const prompt = String( suggestion && suggestion.prompt || '' ).trim().slice( 0, 4000 );
 				if ( label && prompt ) {
@@ -787,6 +826,38 @@
 				}
 				return clean;
 			}, [] );
+		}
+
+		buildResponseSuggestions( suggestions ) {
+			const combined = this.normalizeSuggestions( suggestions );
+			const seen = new Set( combined.map( ( item ) => item.prompt.toLocaleLowerCase() ) );
+			if ( this.lastUserMessage ) seen.add( this.lastUserMessage.toLocaleLowerCase() );
+			const add = ( label, prompt ) => {
+				const cleanLabel = String( label || '' ).trim();
+				const cleanPrompt = String( prompt || '' ).trim();
+				const key = cleanPrompt.toLocaleLowerCase();
+				if ( cleanLabel && cleanPrompt && ! seen.has( key ) && combined.length < 6 ) {
+					seen.add( key );
+					combined.push( { label: cleanLabel, prompt: cleanPrompt, action: 'message' } );
+				}
+			};
+
+			const addTopics = () => {
+				if ( ! this.topics ) return;
+				this.topics.querySelectorAll( '[data-adam-topic]' ).forEach( ( topic ) => {
+					const language = this.currentLanguage === 'en' ? 'en' : 'pt';
+					add( topic.getAttribute( `data-adam-label-${ language }` ), topic.getAttribute( `data-adam-prompt-${ language }` ) );
+				} );
+			};
+			const quickActions = Array.isArray( this.settings.quickActions ) ? this.settings.quickActions : [];
+			if ( this.currentLanguage === 'en' ) {
+				addTopics();
+			} else {
+				quickActions.forEach( ( action ) => add( action && action.label, action && action.prompt ) );
+				if ( combined.length < 3 ) addTopics();
+			}
+
+			return combined.slice( 0, 6 );
 		}
 
 		showTyping() {
@@ -860,12 +931,50 @@
 			}
 		}
 
+		resetConversation( focusTarget = 'home' ) {
+			this.conversationGeneration += 1;
+			this.removeTyping();
+			this.isBusy = false;
+			this.messages.textContent = '';
+			this.input.value = '';
+			this.lastSubmission = { message: '', time: 0 };
+			this.lastUserMessage = '';
+			this.currentLanguage = this.getDefaultLanguage();
+			this.state = {
+				conversationStarted: false,
+				messages: [],
+				cache: Array.isArray( this.state.cache ) ? this.state.cache : [],
+				context: { topic: '', recentResultIds: [], language: this.currentLanguage },
+			};
+			this.root.classList.remove( 'has-messages' );
+			this.welcome.hidden = false;
+			this.quickActions.hidden = false;
+			this.updateLanguage( this.currentLanguage );
+			this.resizeInput();
+			this.setBusy( false );
+			this.persistState();
+			this.conversation.scrollTo( { top: 0, behavior: 'auto' } );
+			this.status.textContent = this.currentLanguage === 'en'
+				? ( this.strings.homeRestoredEn || 'Home screen restored.' )
+				: ( this.strings.homeRestored || 'Ecrã inicial reposto.' );
+			window.setTimeout( () => {
+				if ( ! this.isOpen ) return;
+				if ( focusTarget === 'input' ) {
+					this.input.focus( { preventScroll: true } );
+				} else {
+					const firstAction = this.quickActions.querySelector( 'button' );
+					( firstAction || this.input ).focus( { preventScroll: true } );
+				}
+			}, 0 );
+		}
+
 		restoreConversation() {
 			const hasMessages = this.state.messages.length > 0;
-			const showWelcome = ! hasMessages && ! this.hasSeenWelcome();
+			const showWelcome = ! hasMessages;
 
 			this.welcome.hidden = ! showWelcome;
 			this.quickActions.hidden = hasMessages;
+			this.updateLanguage( this.currentLanguage );
 
 			if ( hasMessages ) {
 				this.root.classList.add( 'has-messages' );
@@ -889,13 +998,55 @@
 		}
 
 		normalizeContext( context ) {
-			const allowedTopics = [ 'membership', 'events', 'rules', 'contact', 'airsoft', 'about' ];
-			const topic = context && allowedTopics.includes( context.topic ) ? context.topic : '';
+			const candidateTopic = String( context && context.topic || '' ).slice( 0, 64 );
+			const topic = /^[a-z0-9_-]+$/i.test( candidateTopic ) ? candidateTopic.toLowerCase() : '';
+			const language = context && context.language === 'en' ? 'en' : ( context && context.language === 'pt' ? 'pt' : this.currentLanguage );
 			const recentResultIds = context && Array.isArray( context.recentResultIds )
 				? context.recentResultIds.slice( -5 ).filter( ( id ) => /^[a-f0-9]{32}$/i.test( String( id ) ) )
 				: [];
 
-			return { topic, recentResultIds };
+			return { topic, recentResultIds, language };
+		}
+
+		updateLanguage( language ) {
+			const isEnglish = language === 'en';
+			this.currentLanguage = isEnglish ? 'en' : 'pt';
+			if ( this.topics ) {
+				const title = this.topics.querySelector( '[data-adam-topics-title]' );
+				if ( title ) title.textContent = isEnglish ? ( this.strings.browseTopicsEn || 'Browse Topics' ) : ( this.strings.browseTopics || 'Explorar temas' );
+				this.topics.querySelectorAll( '[data-adam-topic]' ).forEach( ( topic ) => {
+					const suffix = isEnglish ? 'en' : 'pt';
+					topic.textContent = topic.getAttribute( `data-adam-label-${ suffix }` ) || topic.textContent;
+					topic.setAttribute( 'data-adam-message', topic.getAttribute( `data-adam-prompt-${ suffix }` ) || '' );
+				} );
+			}
+			this.root.querySelectorAll( '[data-adam-home-label]' ).forEach( ( label ) => { label.textContent = isEnglish ? 'Home' : 'Início'; } );
+			this.root.querySelectorAll( '[data-adam-new-label]' ).forEach( ( label ) => { label.textContent = isEnglish ? 'New Conversation' : 'Nova conversa'; } );
+			this.homeButtons.forEach( ( button ) => { button.setAttribute( 'aria-label', isEnglish ? 'Return to home' : 'Voltar ao início' ); } );
+			const headerHome = this.root.querySelector( '.adam-bot__header-home' );
+			if ( headerHome ) headerHome.title = isEnglish ? 'Home' : 'Início';
+			if ( this.newConversationButton ) this.newConversationButton.setAttribute( 'aria-label', isEnglish ? 'Start a new conversation' : 'Iniciar uma nova conversa' );
+			if ( this.toolbar ) this.toolbar.setAttribute( 'aria-label', isEnglish ? 'Conversation controls' : 'Controlos da conversa' );
+			if ( this.closeButton ) this.closeButton.setAttribute( 'aria-label', isEnglish ? 'Close conversation' : 'Fechar conversa' );
+			if ( this.input ) {
+				this.input.placeholder = isEnglish ? ( this.strings.inputPlaceholderEn || 'Ask ADAM BOT…' ) : ( this.strings.inputPlaceholder || 'Pergunte ao ADAM BOT…' );
+				this.input.setAttribute( 'aria-label', isEnglish ? ( this.strings.inputLabelEn || 'Message for ADAM BOT' ) : ( this.strings.inputLabel || 'Mensagem para o ADAM BOT' ) );
+			}
+			if ( this.sendButton ) this.sendButton.setAttribute( 'aria-label', isEnglish ? ( this.strings.sendLabelEn || 'Send message' ) : ( this.strings.sendLabel || 'Enviar mensagem' ) );
+		}
+
+		getDefaultLanguage() {
+			const language = String( document.documentElement.lang || '' ).toLowerCase();
+			return language.startsWith( 'en' ) ? 'en' : 'pt';
+		}
+
+		detectLanguage( message ) {
+			const normalized = String( message || '' ).toLocaleLowerCase();
+			const portuguese = /[ãõçáàâéêíóôú]|\b(como|onde|quando|quanto|quais|sócio|socios|sócios|quota|equipa|campo|parceiro|contactar)\b/u.test( normalized );
+			const english = /\b(what|where|when|how|which|member|membership|team|field|partner|contact|event)\b/u.test( normalized );
+			if ( portuguese ) return 'pt';
+			if ( english ) return 'en';
+			return this.currentLanguage || this.getDefaultLanguage();
 		}
 
 		readState() {
@@ -903,7 +1054,7 @@
 				conversationStarted: false,
 				messages: [],
 				cache: [],
-				context: { topic: '', recentResultIds: [] },
+				context: { topic: '', recentResultIds: [], language: this.currentLanguage },
 			};
 			try {
 				const parsed = JSON.parse( window.sessionStorage.getItem( SESSION_KEY ) || 'null' );

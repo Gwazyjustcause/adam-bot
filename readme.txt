@@ -3,7 +3,7 @@ Contributors: adam
 Tags: chat, assistant, knowledge
 Requires at least: 6.3
 Requires PHP: 7.4
-Stable tag: 1.10.0
+Stable tag: 1.11.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -123,6 +123,14 @@ session storage for recovery and are cleared when the browsing session ends.
 Server analytics contain aggregate counters and scrubbed common-question samples.
 
 == Changelog ==
+
+= 1.11.0 =
+* Added permanent Home and New Conversation controls that reset messages and topic without closing the assistant or reloading the page.
+* Expanded the welcome screen with suggested questions, website topics, search guidance, and direct conversational navigation.
+* Added three to six clickable follow-up questions after every response, prioritizing related Knowledge and using configured navigation actions as fallbacks.
+* Added an always-available bilingual Browse Topics section for association, membership, events, teams, fields, partners, and contacts.
+* Preserved active topics between turns while preventing delayed responses from reappearing after a conversation reset.
+* Improved mobile touch targets, safe-area spacing, focus restoration, screen-reader labels, high contrast, and English/Portuguese navigation copy.
 
 = 1.10.0 =
 * Unified Knowledge and FAQ into one canonical, fully editable Knowledge Base with a record type field and lossless legacy FAQ migration.

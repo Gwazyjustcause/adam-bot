@@ -138,6 +138,9 @@
 
 .adam-bot__launcher:focus-visible,
 .adam-bot__close:focus-visible,
+.adam-bot__header-home:focus-visible,
+.adam-bot__conversation-toolbar button:focus-visible,
+.adam-bot__topic-buttons button:focus-visible,
 .adam-bot__action-card:focus-visible,
 .adam-bot__chip:focus-visible,
 .adam-bot__page-link:focus-visible,
@@ -320,9 +323,17 @@
 	box-shadow: 0 0 0 3px rgba(101, 240, 172, 0.13);
 }
 
-.adam-bot__close {
+.adam-bot__header-actions {
 	position: relative;
 	z-index: 2;
+	display: flex;
+	flex: 0 0 auto;
+	gap: 6px;
+}
+
+.adam-bot__close,
+.adam-bot__header-home {
+	position: relative;
 	display: grid;
 	width: 44px;
 	height: 44px;
@@ -336,19 +347,55 @@
 	transition: color 160ms ease, background 160ms ease, transform 160ms ease;
 }
 
-.adam-bot__close:hover {
+.adam-bot__close:hover,
+.adam-bot__header-home:hover {
 	color: #ffffff;
 	background: rgba(255, 255, 255, 0.19);
+	transform: translateY(-1px);
+}
+
+.adam-bot__close:hover {
 	transform: rotate(4deg);
 }
 
-.adam-bot__close svg {
+.adam-bot__close svg,
+.adam-bot__header-home svg {
 	width: 20px;
 	height: 20px;
 	fill: none;
 	stroke: currentColor;
 	stroke-linecap: round;
 	stroke-width: 1.9;
+}
+
+.adam-bot__conversation-toolbar {
+	display: flex;
+	min-height: 45px;
+	padding: 5px 12px;
+	align-items: center;
+	gap: 6px;
+	border-bottom: 1px solid var(--adam-border);
+	background: var(--adam-surface);
+}
+
+.adam-bot__conversation-toolbar button {
+	display: inline-flex;
+	min-height: 36px;
+	padding: 6px 10px;
+	align-items: center;
+	gap: 5px;
+	border: 0 !important;
+	border-radius: 9px;
+	color: var(--adam-ink-muted);
+	background: transparent;
+	cursor: pointer;
+	font-size: 11.5px !important;
+	font-weight: 700;
+}
+
+.adam-bot__conversation-toolbar button:hover {
+	color: var(--adam-accent-strong);
+	background: var(--adam-accent-soft);
 }
 
 .adam-bot__conversation {
@@ -563,6 +610,46 @@
 .adam-bot__action-icon {
 	font-size: 18px;
 	line-height: 1;
+}
+
+.adam-bot__topics {
+	margin: var(--adam-space-5) 0 0;
+	padding-top: var(--adam-space-4);
+	border-top: 1px solid var(--adam-border);
+}
+
+.adam-bot__topics h3 {
+	margin: 0 0 9px;
+	color: var(--adam-ink-muted);
+	font-size: 11px;
+	font-weight: 800;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+}
+
+.adam-bot__topic-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 7px;
+}
+
+.adam-bot__topic-buttons button {
+	min-height: 44px;
+	padding: 8px 11px;
+	border: 1px solid var(--adam-border) !important;
+	border-radius: 11px;
+	color: var(--adam-ink);
+	background: var(--adam-surface-raised);
+	cursor: pointer;
+	font-size: 12px !important;
+	font-weight: 680;
+	touch-action: manipulation;
+}
+
+.adam-bot__topic-buttons button:hover {
+	border-color: rgba(8, 122, 80, 0.42) !important;
+	color: var(--adam-accent-strong);
+	background: var(--adam-accent-soft);
 }
 
 .adam-bot__bubble > :first-child {
@@ -1107,6 +1194,15 @@
 		padding: max(15px, calc(env(safe-area-inset-top) + 8px)) max(13px, env(safe-area-inset-right)) 15px max(16px, env(safe-area-inset-left));
 	}
 
+	.adam-bot__conversation-toolbar {
+		padding-right: max(8px, env(safe-area-inset-right));
+		padding-left: max(8px, env(safe-area-inset-left));
+	}
+
+	.adam-bot__conversation-toolbar button {
+		min-height: 44px;
+	}
+
 	.adam-bot__conversation {
 		width: 100%;
 		padding: 18px max(14px, env(safe-area-inset-right)) 22px max(14px, env(safe-area-inset-left));
@@ -1138,12 +1234,23 @@
 		font-size: 11.5px;
 	}
 
+	.adam-bot__header-home,
+	.adam-bot__close {
+		width: 42px;
+		height: 42px;
+	}
+
 	.adam-bot__welcome ul {
 		grid-template-columns: 1fr;
 	}
 
 	.adam-bot__action-grid {
 		grid-template-columns: 1fr;
+	}
+
+	.adam-bot__topic-buttons {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 }
 
@@ -1157,6 +1264,10 @@
 	.adam-bot__debug,
 	.adam-bot__callout,
 	.adam-bot__chip,
+	.adam-bot__topic-buttons button,
+	.adam-bot__conversation-toolbar button,
+	.adam-bot__header-home,
+	.adam-bot__close,
 	.adam-bot__input-wrap {
 		border: 1px solid CanvasText !important;
 		box-shadow: none;

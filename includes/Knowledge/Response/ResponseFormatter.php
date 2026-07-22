@@ -68,6 +68,7 @@ final class ResponseFormatter {
 			$cards,
 			array(
 				'topic'           => $search->getTopic(),
+				'language'        => $language,
 				'recentResultIds' => array_map(
 					static function ( KnowledgeResult $result ): string { return $result->getId(); },
 					array_slice( $shown_results, 0, 5 )

@@ -408,6 +408,7 @@ test_assert( 200 === $prices->get_status() && true === ( $data['success'] ?? fal
 test_assert( false !== strpos( $data['message'] ?? '', '€22' ), 'Highest-ranked membership answer was not formatted.' );
 test_assert( count( $data['suggestions'] ?? array() ) >= 1, 'Contextual suggestions were not returned.' );
 test_assert( 'membership' === ( $data['context']['topic'] ?? '' ), 'Membership topic was not retained.' );
+test_assert( 'en' === ( $data['context']['language'] ?? '' ), 'The response language was not exposed to the bilingual conversation controls.' );
 test_assert( ! isset( $data['confidence'], $data['classification'], $data['debug'] ), 'Internal diagnostics leaked to the frontend.' );
 
 $calls_after_first = $test_posts_calls;
@@ -687,9 +688,13 @@ if ( 'public' === $test_mode ) {
 	run_test_hook( 'wp_footer' );
 	$widget = ob_get_clean();
 	test_assert( false !== strpos( $widget, 'data-adam-template' ) && false !== strpos( $widget, 'maxlength="4000"' ), 'Lazy widget markup is incomplete.' );
+	test_assert( substr_count( $widget, 'data-adam-home' ) >= 2 && false !== strpos( $widget, 'data-adam-new-conversation' ) && false !== strpos( $widget, 'data-adam-topics' ) && false !== strpos( $widget, 'adam-bot-search-prompt' ), 'Home, new-conversation, topic browsing, or welcome search controls are missing.' );
 	$localized = $test_assets['localized']['adam-bot']['data'] ?? array();
 	test_assert( 'https://example.test/wp-json/adam-bot/v1/chat' === ( $localized['restUrl'] ?? '' ), 'Frontend REST URL is incorrect.' );
+	test_assert( 'Também poderá estar à procura de:' === ( $localized['strings']['followUps'] ?? '' ) && 'You may also be looking for:' === ( $localized['strings']['followUpsEn'] ?? '' ), 'Bilingual follow-up headings were not localized.' );
 	test_assert( ! isset( $localized['strings']['generalConsent'] ) && 'Eventos' === ( $localized['strings']['events'] ?? '' ) && 'Resultados' === ( $localized['strings']['results'] ?? '' ), 'Frontend strings are incomplete or still expose general-AI consent.' );
+	$frontend_script = file_get_contents( dirname( __DIR__ ) . '/assets/js/adam-bot.js' );
+	test_assert( is_string( $frontend_script ) && false !== strpos( $frontend_script, 'resetConversation' ) && false !== strpos( $frontend_script, 'conversationGeneration' ) && false !== strpos( $frontend_script, 'buildResponseSuggestions' ) && false !== strpos( $frontend_script, 'suggestions.slice( 0, 6 )' ), 'Conversation reset or three-to-six suggestion safeguards are missing.' );
 } else {
 	test_assert( ! isset( $test_hooks['wp_enqueue_scripts'], $test_hooks['wp_footer'] ), 'Frontend hooks were registered on a protected screen.' );
 }

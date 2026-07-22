@@ -52,18 +52,28 @@ defined( 'ABSPATH' ) || exit;
 					<p id="adam-bot-subtitle"><?php esc_html_e( 'Assistente virtual da ADAM', 'adam-bot' ); ?></p>
 				</div>
 
-				<button type="button" class="adam-bot__close" data-adam-close aria-label="<?php esc_attr_e( 'Fechar conversa', 'adam-bot' ); ?>">
-					<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-						<path d="M6 6l12 12M18 6 6 18"></path>
-					</svg>
-				</button>
+				<div class="adam-bot__header-actions">
+					<button type="button" class="adam-bot__header-home" data-adam-home aria-label="<?php esc_attr_e( 'Voltar ao início', 'adam-bot' ); ?>" title="<?php esc_attr_e( 'Início', 'adam-bot' ); ?>">
+						<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m4 11 8-7 8 7"></path><path d="M6.5 9.5V20h11V9.5M10 20v-6h4v6"></path></svg>
+					</button>
+					<button type="button" class="adam-bot__close" data-adam-close aria-label="<?php esc_attr_e( 'Fechar conversa', 'adam-bot' ); ?>">
+						<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+							<path d="M6 6l12 12M18 6 6 18"></path>
+						</svg>
+					</button>
+				</div>
 			</header>
+
+			<nav class="adam-bot__conversation-toolbar" data-adam-toolbar aria-label="<?php esc_attr_e( 'Controlos da conversa', 'adam-bot' ); ?>">
+				<button type="button" data-adam-home><span aria-hidden="true">🏠</span> <span data-adam-home-label><?php esc_html_e( 'Início', 'adam-bot' ); ?></span></button>
+				<button type="button" data-adam-new-conversation><span aria-hidden="true">🗑️</span> <span data-adam-new-label><?php esc_html_e( 'Nova conversa', 'adam-bot' ); ?></span></button>
+			</nav>
 
 			<div class="adam-bot__conversation" data-adam-conversation>
 				<section class="adam-bot__welcome" data-adam-welcome aria-labelledby="adam-bot-welcome-title">
 					<div class="adam-bot__welcome-icon" aria-hidden="true">👋</div>
 					<h3 id="adam-bot-welcome-title"><?php esc_html_e( 'Bem-vindo!', 'adam-bot' ); ?></h3>
-					<p><?php esc_html_e( 'Sou o ADAM BOT, o assistente virtual da ADAM.', 'adam-bot' ); ?></p>
+					<p><?php esc_html_e( 'Sou o ADAM BOT, o assistente virtual da ADAM. Posso ajudá-lo a explorar a associação, serviços e atividades.', 'adam-bot' ); ?></p>
 					<p><?php esc_html_e( 'Posso ajudar com:', 'adam-bot' ); ?></p>
 					<ul>
 						<li><?php esc_html_e( 'Sócios', 'adam-bot' ); ?></li>
@@ -71,11 +81,11 @@ defined( 'ABSPATH' ) || exit;
 						<li><?php esc_html_e( 'Airsoft', 'adam-bot' ); ?></li>
 						<li><?php esc_html_e( 'Informação do website', 'adam-bot' ); ?></li>
 					</ul>
-					<p><?php esc_html_e( 'Como posso ajudar?', 'adam-bot' ); ?></p>
+					<p id="adam-bot-search-prompt" class="adam-bot__search-prompt"><?php esc_html_e( 'Escolha um tema, uma pergunta sugerida ou pesquise abaixo.', 'adam-bot' ); ?></p>
 				</section>
 
 				<nav class="adam-bot__quick-actions" data-adam-quick-actions aria-labelledby="adam-bot-quick-actions-title">
-					<h3 id="adam-bot-quick-actions-title"><?php esc_html_e( 'Acesso rápido', 'adam-bot' ); ?></h3>
+					<h3 id="adam-bot-quick-actions-title"><?php esc_html_e( 'Perguntas sugeridas', 'adam-bot' ); ?></h3>
 					<div class="adam-bot__action-grid">
 						<?php foreach ( $quick_actions as $action ) : ?>
 							<button type="button" class="adam-bot__action-card" data-adam-message="<?php echo esc_attr( (string) $action['prompt'] ); ?>">
@@ -88,6 +98,26 @@ defined( 'ABSPATH' ) || exit;
 				</nav>
 
 				<div class="adam-bot__messages" data-adam-messages role="log" aria-live="polite" aria-relevant="additions text"></div>
+
+				<nav class="adam-bot__topics" data-adam-topics aria-labelledby="adam-bot-topics-title">
+					<h3 id="adam-bot-topics-title" data-adam-topics-title><?php esc_html_e( 'Explorar temas', 'adam-bot' ); ?></h3>
+					<div class="adam-bot__topic-buttons">
+						<?php
+						$topics = array(
+							array( 'association', 'Associação', 'Association', 'O que é a ADAM?', 'What is ADAM?' ),
+							array( 'membership', 'Sócios', 'Membership', 'Como me posso tornar sócio?', 'How can I become a member?' ),
+							array( 'events', 'Eventos', 'Events', 'Quais são os próximos eventos?', 'What are the upcoming events?' ),
+							array( 'teams', 'Equipas', 'Teams', 'Que equipas existem?', 'What teams are available?' ),
+							array( 'fields', 'Campos', 'Fields', 'Onde ficam os campos associados?', 'Where are the associated fields?' ),
+							array( 'partners', 'Parceiros', 'Partners', 'Que parceiros e benefícios existem?', 'Which partners and benefits are available?' ),
+							array( 'contact', 'Contactos', 'Contacts', 'Como posso contactar a ADAM?', 'How can I contact ADAM?' ),
+						);
+						foreach ( $topics as $topic ) :
+							?>
+							<button type="button" data-adam-topic="<?php echo esc_attr( $topic[0] ); ?>" data-adam-label-pt="<?php echo esc_attr( $topic[1] ); ?>" data-adam-label-en="<?php echo esc_attr( $topic[2] ); ?>" data-adam-prompt-pt="<?php echo esc_attr( $topic[3] ); ?>" data-adam-prompt-en="<?php echo esc_attr( $topic[4] ); ?>" data-adam-message="<?php echo esc_attr( $topic[3] ); ?>"><?php echo esc_html( $topic[1] ); ?></button>
+						<?php endforeach; ?>
+					</div>
+				</nav>
 			</div>
 
 			<div class="adam-bot__sr-only" data-adam-status role="status" aria-live="polite" aria-atomic="true"></div>
@@ -103,6 +133,7 @@ defined( 'ABSPATH' ) || exit;
 						maxlength="4000"
 						placeholder="<?php esc_attr_e( 'Pergunte ao ADAM BOT…', 'adam-bot' ); ?>"
 						aria-label="<?php esc_attr_e( 'Mensagem para o ADAM BOT', 'adam-bot' ); ?>"
+						aria-describedby="adam-bot-search-prompt"
 						spellcheck="true"
 					></textarea>
 					<button type="submit" class="adam-bot__send" data-adam-send disabled aria-label="<?php esc_attr_e( 'Enviar mensagem', 'adam-bot' ); ?>">
