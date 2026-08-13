@@ -914,8 +914,15 @@
 
 		scrollToLatest() {
 			window.requestAnimationFrame( () => {
+				const latestMessage = this.typingMessage || this.messages.lastElementChild;
+				if ( ! latestMessage ) return;
+
+				// Keep the current Q&A in view. Scrolling to scrollHeight makes
+				// long replies with suggestions/cards hide the question and answer
+				// above the composer.
+				const top = Math.max( 0, latestMessage.offsetTop - 12 );
 				this.conversation.scrollTo( {
-					top: this.conversation.scrollHeight,
+					top,
 					behavior: window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ? 'auto' : 'smooth',
 				} );
 			} );
