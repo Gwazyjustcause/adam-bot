@@ -25,7 +25,9 @@ final class FlowSchema {
 	public const MIGRATION_STATUS_META = '_adam_bot_flow_migration_status';
 	public const LEGACY_ID_META = '_adam_bot_flow_legacy_id';
 	public const MIGRATION_NOTES_META = '_adam_bot_flow_migration_notes';
+	public const MIGRATION_KEY_META = '_adam_bot_flow_migration_key';
 	public const SEEDED_OPTION = 'adam_bot_guided_seed_version';
+	public const POPULATED_OPTION = 'adam_bot_guided_population_version';
 
 	public static function nodeTypes(): array {
 		return array(
