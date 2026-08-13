@@ -37,6 +37,7 @@ use AdamBot\Knowledge\Response\ResponseFormatter;
 use AdamBot\Knowledge\Sources\EventSource;
 use AdamBot\Knowledge\Sources\ManualSource;
 use AdamBot\UX\ExperienceSettings;
+use AdamBot\Guided\GuidedFlowAdmin;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -134,6 +135,7 @@ final class Plugin {
 			$site_indexer,
 			$knowledge_migration,
 			new Assets( $experience_settings ),
+			new GuidedFlowAdmin( $this->dynamic_providers ),
 		);
 
 		foreach ( $this->components as $component ) {

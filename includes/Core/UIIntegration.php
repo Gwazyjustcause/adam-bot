@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace AdamBot\Core;
 
+use AdamBot\Guided\FlowSchema;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -72,14 +74,14 @@ final class UIIntegration {
 		$post_type = isset( $_GET['post_type'] ) ? sanitize_key( wp_unslash( (string) $_GET['post_type'] ) ) : '';
 		$taxonomy  = isset( $_GET['taxonomy'] ) ? sanitize_key( wp_unslash( (string) $_GET['taxonomy'] ) ) : '';
 
-		if ( 'adam_bot_knowledge' === $post_type || 'adam_bot_category' === $taxonomy ) {
+		if ( 'adam_bot_knowledge' === $post_type || 'adam_bot_category' === $taxonomy || FlowSchema::POST_TYPE === $post_type ) {
 			return true;
 		}
 
 		if ( function_exists( 'get_current_screen' ) ) {
 			$screen = get_current_screen();
 
-			if ( $screen && ( 'adam_bot_knowledge' === $screen->post_type || 'adam_bot_category' === $screen->taxonomy ) ) {
+			if ( $screen && ( 'adam_bot_knowledge' === $screen->post_type || 'adam_bot_category' === $screen->taxonomy || FlowSchema::POST_TYPE === $screen->post_type ) ) {
 				return true;
 			}
 		}

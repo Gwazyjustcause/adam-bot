@@ -1,0 +1,10 @@
+.adam-bot-flow-tree { max-width: 1100px; margin-top: 24px; padding: 18px; border: 1px solid #ccd0d4; background: #fff; }
+.adam-bot-flow-tree-root { display: flex; gap: 14px; align-items: baseline; padding: 0 0 14px; border-bottom: 1px solid #e2e4e7; }
+.adam-bot-flow-tree-row { display: flex; gap: 8px; align-items: center; min-height: 44px; padding-left: calc(var(--flow-depth) * 28px); border-bottom: 1px solid #f0f0f1; }
+.adam-bot-flow-tree-branch { color: #8c8f94; }.adam-bot-flow-tree-icon { width: 28px; }.adam-bot-flow-tree-actions { margin-left: auto; font-size: 12px; }
+.adam-bot-flow-badge { display: inline-block; padding: 3px 7px; border-radius: 10px; font-size: 11px; line-height: 1.2; background: #f0f0f1; }
+.adam-bot-flow-badge-menu { background: #e7f3ff; color: #135e96; }.adam-bot-flow-badge-answer { background: #e7f7ed; color: #176b3a; }.adam-bot-flow-badge-dynamic { background: #fff4d6; color: #785b00; }.adam-bot-flow-badge-redirect { background: #f2eafa; color: #68419a; }
+.adam-bot-flow-review-unreviewed,.adam-bot-flow-review-not_suitable { background: #fbeaea; color: #8a2424; }.adam-bot-flow-review-reviewed,.adam-bot-flow-review-migrated { background: #e7f7ed; color: #176b3a; }
+.adam-bot-flow-action { display: grid; grid-template-columns: 24px minmax(160px, 1fr) 160px minmax(160px, 1fr) minmax(160px, 1fr) minmax(160px, 1fr) auto; gap: 8px; align-items: center; margin: 8px 0; padding: 10px; border: 1px solid #dcdcde; background: #fafafa; }
+.adam-bot-flow-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }.adam-bot-flow-form-grid p:last-child { grid-column: 1 / -1; }
+@media (max-width: 900px) { .adam-bot-flow-action { grid-template-columns: 24px 1fr 1fr; }.adam-bot-flow-action [data-flow-action-node],.adam-bot-flow-action [data-flow-action-page],.adam-bot-flow-action [data-flow-action-url] { grid-column: 2 / -1; }.adam-bot-flow-form-grid { grid-template-columns: 1fr; } }
