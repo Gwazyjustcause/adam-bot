@@ -49,7 +49,7 @@ final class Assets {
 		}
 
 		$style_path  = 'assets/css/adam-bot.css';
-		$script_path = 'assets/js/adam-bot.js';
+		$script_path = 'assets/js/adam-bot-guided.js';
 
 		wp_register_style(
 			'adam-bot',
@@ -71,6 +71,7 @@ final class Assets {
 			'adamBotSettings',
 			array(
 				'restUrl'      => esc_url_raw( rest_url( 'adam-bot/v1/chat' ) ),
+				'guidedUrl'    => esc_url_raw( rest_url( 'adam-bot/v1/guided' ) ),
 				'nonce'        => wp_create_nonce( 'wp_rest' ),
 				'quickActions' => $this->experience_settings->all()['quick_actions'],
 				'strings'      => array(
