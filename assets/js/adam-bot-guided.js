@@ -64,6 +64,8 @@
 			this.stage = this.root.querySelector( '[data-guided-stage]' );
 			this.status = this.root.querySelector( '[data-guided-status]' );
 			this.backButton = this.root.querySelector( '[data-guided-back]' );
+			this.homeButton = this.root.querySelector( '[data-guided-home]' );
+			this.resetButton = this.root.querySelector( '[data-guided-reset]' );
 			this.panel.setAttribute( 'inert', '' );
 			this.closeButton.addEventListener( 'click', () => this.close() );
 			this.backdrop.addEventListener( 'click', () => this.close() );
@@ -187,7 +189,12 @@
 		renderLoading() { this.stage.textContent = ''; const loading = document.createElement( 'p' ); loading.className = 'adam-bot__guided-loading'; loading.textContent = this.strings.guidedLoading || 'A carregar…'; this.stage.appendChild( loading ); }
 	renderError() { this.stage.textContent = ''; const error = document.createElement( 'p' ); error.className = 'adam-bot__guided-error'; error.textContent = this.strings.guidedError || 'Não foi possível carregar esta opção. Tente novamente.'; this.stage.appendChild( error ); }
 
-		updateNavigation() { if ( this.backButton ) this.backButton.disabled = this.loading || this.history.length === 0; }
+		updateNavigation() {
+			const atRoot = ! this.loading && this.currentId === 0 && this.history.length === 0;
+			if ( this.backButton ) { this.backButton.disabled = this.loading || this.history.length === 0; this.backButton.hidden = atRoot; }
+			if ( this.homeButton ) this.homeButton.hidden = atRoot;
+			if ( this.resetButton ) this.resetButton.hidden = atRoot;
+		}
 		readState() { try { const stored = JSON.parse( window.sessionStorage.getItem( STATE_KEY ) || 'null' ); this.currentId = Number.isInteger( stored && stored.currentId ) ? stored.currentId : 0; this.history = Array.isArray( stored && stored.history ) ? stored.history.filter( ( id ) => Number.isInteger( id ) && id >= 0 ).slice( -MAX_HISTORY ) : []; } catch ( error ) { this.currentId = 0; this.history = []; } }
 		persistState() { try { window.sessionStorage.setItem( STATE_KEY, JSON.stringify( { currentId: this.currentId, history: this.history } ) ); } catch ( error ) {} }
 		updateViewportHeight() { const height = window.visualViewport ? window.visualViewport.height : window.innerHeight; this.root.style.setProperty( '--adam-viewport-height', `${ Math.round( height ) }px` ); }

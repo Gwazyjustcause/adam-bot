@@ -14,7 +14,7 @@ defined( 'ABSPATH' ) || exit;
 final class GuidedFlowMigration {
 	private const ACTION = 'adam_bot_populate_guided_flow';
 	private const NONCE = 'adam_bot_guided_migration';
-	private const VERSION = 2;
+	private const VERSION = 3;
 	private const ROOTS = array(
 		'membership' => array( '🤝', 'Sócios e inscrições' ),
 		'events' => array( '🎯', 'Jogos e eventos' ),
@@ -82,7 +82,7 @@ final class GuidedFlowMigration {
 		$this->ensure_dynamic_branch( $roots['partners'], 'partners', 'Parceiros e vantagens', 'partners' );
 		$this->ensure_dynamic_branch( $roots['help'], 'documents', 'Documentos e recursos', 'documents' );
 		$groups = array();
-		foreach ( $this->scan() as $row ) {
+		foreach ( $this->scan( false ) as $row ) {
 			if ( 'ready' !== $row['result'] || 0 === (int) $row['parent_id'] ) continue;
 			$groups[ $row['parent_id'] . '|' . $row['group_key'] ][] = $row;
 		}
@@ -91,16 +91,16 @@ final class GuidedFlowMigration {
 	}
 
 	/** @return array<int,array<string,mixed>> */
-	private function scan(): array {
+	private function scan( bool $exclude_existing = true ): array {
 		$posts = get_posts( array( 'post_type' => ManualSource::POST_TYPE, 'post_status' => array( 'publish', 'draft', 'pending', 'private' ), 'posts_per_page' => -1, 'orderby' => 'ID', 'order' => 'ASC', 'no_found_rows' => true ) );
 		$rows = array();
 		foreach ( $posts as $post ) {
 			$id = (int) $post->ID;
 			$label = trim( (string) get_post_meta( $id, EntrySchema::QUESTION_META, true ) ) ?: (string) $post->post_title;
 			$existing = get_posts( array( 'post_type' => FlowSchema::POST_TYPE, 'post_status' => array( 'publish', 'draft', 'pending', 'private' ), 'posts_per_page' => 1, 'meta_key' => FlowSchema::LEGACY_ID_META, 'meta_value' => $id, 'no_found_rows' => true ) );
-			if ( ! empty( $existing ) ) { $rows[] = $this->row( $id, $label, 'existing', 0, '', '', 'Já existe uma ligação guiada para esta entrada.' ); continue; }
+			if ( ! empty( $existing ) && $exclude_existing ) { $rows[] = $this->row( $id, $label, 'existing', 0, '', '', 'Já existe uma ligação guiada para esta entrada.' ); continue; }
 			if ( '' === $this->content( $post ) ) { $rows[] = $this->row( $id, $label, 'empty', 0, '', '', 'Sem resposta verificável.' ); continue; }
-			$classification = $this->classify( $label . ' ' . $this->content( $post ) . ' ' . $this->categories( $id ) );
+			$classification = $this->classify( $label . ' ' . $this->categories( $id ) );
 			if ( ! isset( self::ROOTS[ $classification['root'] ?? '' ] ) ) { $rows[] = $this->row( $id, $label, 'unmatched', 0, '', '', 'Não foi possível atribuir este conteúdo com segurança.' ); continue; }
 			$parent = $this->find_node( 'root-' . $classification['root'] );
 			$rows[] = $this->row( $id, $label, 'ready', $parent, self::ROOTS[ $classification['root'] ][1], $classification['group'], $classification['note'] );
@@ -114,25 +114,37 @@ final class GuidedFlowMigration {
 		$key = 'group-' . md5( $parent . '|' . $first['group_key'] );
 		$label = $this->group_label( (string) $first['group_key'] );
 		$all_published = true;
-		$content = array(); $blocks = array(); $actions = array(); $legacy_ids = array();
+		$sources = array(); $legacy_ids = array();
 		foreach ( $rows as $row ) {
 			$source = get_post( (int) $row['id'] );
 			if ( ! is_object( $source ) ) continue;
 			if ( 'publish' !== (string) $source->post_status ) $all_published = false;
 			$legacy_ids[] = (int) $row['id'];
-			$answer = $this->content( $source ); if ( '' !== $answer ) $content[] = $answer;
-			$blocks = array_merge( $blocks, EntrySchema::sanitizeBlocks( get_post_meta( $source->ID, EntrySchema::RESPONSE_BLOCKS_META, true ) ) );
-			$actions = array_merge( $actions, $this->source_actions( $source->ID ) );
+			$sources[] = $source;
 		}
 		$node = $this->ensure_node( $key, $label, 'answer', $parent, '', $all_published ? 'publish' : 'draft', $all_published ? 'migrated' : 'unreviewed' );
+		usort( $sources, function ( $left, $right ) use ( $first ): int { return $this->source_score( $right, (string) $first['group_key'] ) <=> $this->source_score( $left, (string) $first['group_key'] ); } );
+		$primary = $sources[0] ?? null;
+		$content = array(); $actions = array();
+		foreach ( array_slice( $sources, 0, 3 ) as $source ) {
+			$answer = $this->content( $source ); if ( '' !== $answer ) $content[] = function_exists( 'mb_substr' ) ? mb_substr( $answer, 0, 1200 ) : substr( $answer, 0, 1200 );
+			if ( 0 === count( $actions ) ) $actions = $this->source_actions( $source->ID );
+		}
 		$seen = array(); $deduped = array();
 		foreach ( $actions as $action ) { $signature = md5( wp_json_encode( $action ) ); if ( isset( $seen[ $signature ] ) ) continue; $seen[ $signature ] = true; $deduped[] = $action; }
-		update_post_meta( $node, FlowSchema::DIRECT_ANSWER_META, $this->first_sentence( $content[0] ?? '' ) );
-		update_post_meta( $node, EntrySchema::RESPONSE_BLOCKS_META, EntrySchema::sanitizeBlocks( $blocks ) );
+		$primary_content = is_object( $primary ) ? $this->content( $primary ) : ( $content[0] ?? '' );
+		update_post_meta( $node, FlowSchema::DIRECT_ANSWER_META, $this->first_sentence( $primary_content ) );
+		update_post_meta( $node, EntrySchema::RESPONSE_BLOCKS_META, EntrySchema::sanitizeBlocks( is_object( $primary ) ? get_post_meta( $primary->ID, EntrySchema::RESPONSE_BLOCKS_META, true ) : array() ) );
 		update_post_meta( $node, FlowSchema::ACTIONS_META, FlowSchema::sanitizeActions( $deduped ) );
 		update_post_meta( $node, FlowSchema::LEGACY_ID_META, $legacy_ids[0] ?? 0 );
 		update_post_meta( $node, FlowSchema::MIGRATION_NOTES_META, sprintf( 'Consolidado de %d entradas legadas.', count( $legacy_ids ) ) );
 		wp_update_post( array( 'ID' => $node, 'post_content' => wp_kses_post( implode( "\n\n", array_unique( $content ) ) ) ) );
+	}
+
+	private function source_score( $source, string $group ): int {
+		$text = strtolower( remove_accents( (string) get_post_meta( $source->ID, EntrySchema::QUESTION_META, true ) . ' ' . (string) $source->post_title ) );
+		$terms = array( 'membership-join' => array( 'socio', 'inscri', 'tornar', 'becom', 'join' ), 'membership-renew' => array( 'quota', 'renov' ), 'events-participate' => array( 'evento', 'jogo', 'particip' ), 'airsoft-start' => array( 'airsoft', 'comec', 'inici' ), 'about-adam' => array( 'adam', 'associa', 'sobre' ), 'partners-info' => array( 'parceir', 'partner' ), 'help-contact' => array( 'ajuda', 'contact' ) );
+		$score = 0; foreach ( $terms[ $group ] ?? array() as $term ) if ( false !== strpos( $text, $term ) ) $score += 10; return $score;
 	}
 
 	private function ensure_dynamic_branch( int $parent, string $key, string $label, string $provider ): int {
