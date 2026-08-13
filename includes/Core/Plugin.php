@@ -38,6 +38,7 @@ use AdamBot\Knowledge\Sources\EventSource;
 use AdamBot\Knowledge\Sources\ManualSource;
 use AdamBot\UX\ExperienceSettings;
 use AdamBot\Guided\GuidedFlowAdmin;
+use AdamBot\Guided\GuidedNavigationAPI;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -136,6 +137,7 @@ final class Plugin {
 			$knowledge_migration,
 			new Assets( $experience_settings ),
 			new GuidedFlowAdmin( $this->dynamic_providers ),
+			new GuidedNavigationAPI( $this->dynamic_providers ),
 		);
 
 		foreach ( $this->components as $component ) {

@@ -18,6 +18,7 @@ final class FlowSchema {
 	public const LABEL_META = '_adam_bot_flow_label';
 	public const ICON_META = '_adam_bot_flow_icon';
 	public const INTRO_META = '_adam_bot_flow_intro';
+	public const LANGUAGE_META = '_adam_bot_flow_language';
 	public const PROVIDER_META = '_adam_bot_flow_provider';
 	public const ACTIONS_META = '_adam_bot_flow_actions';
 	public const MIGRATION_STATUS_META = '_adam_bot_flow_migration_status';
@@ -56,6 +57,10 @@ final class FlowSchema {
 	public static function nodeType( $value ): string {
 		$value = sanitize_key( (string) $value );
 		return array_key_exists( $value, self::nodeTypes() ) ? $value : 'menu';
+	}
+
+	public static function language( $value ): string {
+		return 'en' === sanitize_key( (string) $value ) ? 'en' : 'pt';
 	}
 
 	public static function migrationStatus( $value ): string {

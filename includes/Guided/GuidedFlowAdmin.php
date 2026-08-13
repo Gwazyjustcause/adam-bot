@@ -57,6 +57,7 @@ final class GuidedFlowAdmin {
 		$label = (string) get_post_meta( $post->ID, FlowSchema::LABEL_META, true );
 		$icon = (string) get_post_meta( $post->ID, FlowSchema::ICON_META, true );
 		$intro = (string) get_post_meta( $post->ID, FlowSchema::INTRO_META, true );
+		$language = FlowSchema::language( get_post_meta( $post->ID, FlowSchema::LANGUAGE_META, true ) );
 		$provider = sanitize_key( (string) get_post_meta( $post->ID, FlowSchema::PROVIDER_META, true ) );
 		$parents = get_posts( array( 'post_type' => FlowSchema::POST_TYPE, 'post_status' => array( 'publish', 'draft', 'pending', 'private' ), 'posts_per_page' => -1, 'post__not_in' => array( (int) $post->ID ), 'orderby' => 'menu_order title', 'order' => 'ASC', 'fields' => 'all' ) );
 		?>
@@ -66,6 +67,7 @@ final class GuidedFlowAdmin {
 			<p><label for="adam-bot-flow-icon"><strong><?php esc_html_e( 'Ícone', 'adam-bot' ); ?></strong></label><input class="small-text" id="adam-bot-flow-icon" name="adam_bot_flow_icon" maxlength="8" value="<?php echo esc_attr( $icon ); ?>" placeholder="🤝" /></p>
 			<p><label for="adam-bot-flow-parent"><strong><?php esc_html_e( 'Nó pai', 'adam-bot' ); ?></strong></label><select class="widefat" id="adam-bot-flow-parent" name="post_parent"><option value="0"><?php esc_html_e( 'Raiz principal', 'adam-bot' ); ?></option><?php foreach ( $parents as $parent ) : ?><option value="<?php echo esc_attr( (string) $parent->ID ); ?>" <?php selected( (int) $post->post_parent, (int) $parent->ID ); ?>><?php echo esc_html( str_repeat( '— ', $this->depth( $parent ) ) . $this->publicLabel( $parent ) ); ?></option><?php endforeach; ?></select></p>
 			<p><label for="adam-bot-flow-order"><strong><?php esc_html_e( 'Ordem', 'adam-bot' ); ?></strong></label><input type="number" id="adam-bot-flow-order" name="menu_order" min="0" max="9999" value="<?php echo esc_attr( (string) $post->menu_order ); ?>" /></p>
+			<p><label for="adam-bot-flow-language"><strong><?php esc_html_e( 'Idioma', 'adam-bot' ); ?></strong></label><select id="adam-bot-flow-language" name="adam_bot_flow_language"><option value="pt" <?php selected( $language, 'pt' ); ?>><?php esc_html_e( 'Português', 'adam-bot' ); ?></option><option value="en" <?php selected( $language, 'en' ); ?>><?php esc_html_e( 'Inglês', 'adam-bot' ); ?></option></select></p>
 			<p class="flow-type-menu"><label for="adam-bot-flow-intro"><strong><?php esc_html_e( 'Introdução do menu', 'adam-bot' ); ?></strong></label><textarea class="widefat" id="adam-bot-flow-intro" name="adam_bot_flow_intro" rows="3" maxlength="600"><?php echo esc_textarea( $intro ); ?></textarea></p>
 			<p class="flow-type-dynamic"><label for="adam-bot-flow-provider"><strong><?php esc_html_e( 'Fornecedor', 'adam-bot' ); ?></strong></label><select class="widefat" id="adam-bot-flow-provider" name="adam_bot_flow_provider"><option value=""><?php esc_html_e( 'Selecionar fornecedor', 'adam-bot' ); ?></option><?php foreach ( $this->providers->labels() as $key => $text ) : ?><option value="<?php echo esc_attr( $key ); ?>" <?php selected( $provider, $key ); ?>><?php echo esc_html( $text ); ?></option><?php endforeach; ?></select><span class="description"><?php esc_html_e( 'A configuração detalhada dos fornecedores será ligada numa fase posterior.', 'adam-bot' ); ?></span></p>
 		</div>
@@ -107,6 +109,7 @@ final class GuidedFlowAdmin {
 		update_post_meta( $post_id, FlowSchema::LABEL_META, sanitize_text_field( wp_unslash( (string) ( $_POST['adam_bot_flow_label'] ?? '' ) ) ) );
 		update_post_meta( $post_id, FlowSchema::ICON_META, substr( sanitize_text_field( wp_unslash( (string) ( $_POST['adam_bot_flow_icon'] ?? '' ) ) ), 0, 8 ) );
 		update_post_meta( $post_id, FlowSchema::INTRO_META, sanitize_textarea_field( wp_unslash( (string) ( $_POST['adam_bot_flow_intro'] ?? '' ) ) ) );
+		update_post_meta( $post_id, FlowSchema::LANGUAGE_META, FlowSchema::language( $_POST['adam_bot_flow_language'] ?? 'pt' ) );
 		$provider = sanitize_key( (string) ( $_POST['adam_bot_flow_provider'] ?? '' ) );
 		$known = array_keys( $this->providers->labels() );
 		update_post_meta( $post_id, FlowSchema::PROVIDER_META, in_array( $provider, $known, true ) ? $provider : '' );
@@ -132,9 +135,9 @@ final class GuidedFlowAdmin {
 	public function enqueue_assets( string $hook ): void { if ( false === strpos( $hook, 'adam-bot-flow' ) && ( ! function_exists( 'get_current_screen' ) || ! ( get_current_screen() && FlowSchema::POST_TYPE === get_current_screen()->post_type ) ) ) return; wp_enqueue_style( 'adam-bot-flow-admin', ADAM_BOT_URL . 'assets/css/adam-bot-flow-admin.css', array(), ADAM_BOT_VERSION ); wp_enqueue_script( 'adam-bot-flow-admin', ADAM_BOT_URL . 'assets/js/adam-bot-flow-admin.js', array(), ADAM_BOT_VERSION, true ); }
 
 	public function seed_root_nodes(): void {
-		if ( get_option( FlowSchema::SEEDED_OPTION, 0 ) || ! current_user_can( 'manage_options' ) ) return;
+		if ( get_option( FlowSchema::SEEDED_OPTION, 0 ) || ! current_user_can( 'manage_options' ) || ! function_exists( 'wp_insert_post' ) ) return;
 		$roots = array( array( '🤝', 'Sócios e inscrições' ), array( '🎯', 'Jogos e eventos' ), array( '🪖', 'Começar no Airsoft' ), array( '👥', 'Equipas' ), array( '🗺️', 'Campos' ), array( '🏛️', 'Sobre a ADAM' ), array( '🤝', 'Parcerias e colaboração' ), array( '💬', 'Ajuda e contactos' ) );
-		foreach ( $roots as $index => $root ) { $existing = get_page_by_title( $root[1], OBJECT, FlowSchema::POST_TYPE ); if ( $existing ) continue; $id = wp_insert_post( array( 'post_type' => FlowSchema::POST_TYPE, 'post_title' => $root[1], 'post_status' => 'draft', 'menu_order' => $index, 'post_parent' => 0 ), true ); if ( is_wp_error( $id ) ) continue; update_post_meta( $id, FlowSchema::NODE_TYPE_META, 'menu' ); update_post_meta( $id, FlowSchema::LABEL_META, $root[1] ); update_post_meta( $id, FlowSchema::ICON_META, $root[0] ); update_post_meta( $id, FlowSchema::MIGRATION_STATUS_META, 'new' ); }
+		foreach ( $roots as $index => $root ) { $existing = get_posts( array( 'post_type' => FlowSchema::POST_TYPE, 'post_status' => array( 'publish', 'draft', 'pending', 'private' ), 'title' => $root[1], 'posts_per_page' => 1, 'no_found_rows' => true ) ); if ( ! empty( $existing ) ) continue; $id = wp_insert_post( array( 'post_type' => FlowSchema::POST_TYPE, 'post_title' => $root[1], 'post_status' => 'draft', 'menu_order' => $index, 'post_parent' => 0 ), true ); if ( is_wp_error( $id ) ) continue; update_post_meta( $id, FlowSchema::NODE_TYPE_META, 'menu' ); update_post_meta( $id, FlowSchema::LABEL_META, $root[1] ); update_post_meta( $id, FlowSchema::ICON_META, $root[0] ); update_post_meta( $id, FlowSchema::LANGUAGE_META, 'pt' ); update_post_meta( $id, FlowSchema::MIGRATION_STATUS_META, 'new' ); }
 		update_option( FlowSchema::SEEDED_OPTION, 1, false );
 	}
 }
