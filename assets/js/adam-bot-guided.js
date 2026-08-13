@@ -149,6 +149,7 @@
 			if ( node.icon ) { const icon = document.createElement( 'span' ); icon.className = 'adam-bot__guided-icon'; icon.setAttribute( 'aria-hidden', 'true' ); icon.textContent = node.icon; heading.appendChild( icon ); }
 			const title = document.createElement( 'h3' ); title.textContent = node.id === 0 ? ( this.strings.guidedWelcome || 'Olá! 👋 Em que podemos ajudar?' ) : String( node.label || '' ); heading.appendChild( title ); this.stage.appendChild( heading );
 			if ( node.intro ) { const intro = document.createElement( 'p' ); intro.className = 'adam-bot__guided-intro'; intro.textContent = node.intro; this.stage.appendChild( intro ); }
+			if ( node.direct_answer ) { const answer = document.createElement( 'div' ); answer.className = 'adam-bot__guided-direct-answer'; answer.textContent = node.direct_answer; this.stage.appendChild( answer ); }
 			if ( Array.isArray( node.blocks ) && node.blocks.length ) this.renderBlocks( node.blocks );
 			else if ( node.content ) this.renderContent( node.content );
 			if ( node.type === 'dynamic' && ! node.content ) { const note = document.createElement( 'p' ); note.className = 'adam-bot__guided-note'; note.textContent = this.strings.guidedPreparing || 'Esta informação está a ser preparada.'; this.stage.appendChild( note ); }

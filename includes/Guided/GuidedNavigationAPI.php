@@ -61,6 +61,7 @@ final class GuidedNavigationAPI {
 			'icon' => sanitize_text_field( (string) get_post_meta( $node->ID, FlowSchema::ICON_META, true ) ),
 			'language' => FlowSchema::language( get_post_meta( $node->ID, FlowSchema::LANGUAGE_META, true ) ),
 			'intro' => sanitize_textarea_field( (string) get_post_meta( $node->ID, FlowSchema::INTRO_META, true ) ),
+			'direct_answer' => sanitize_textarea_field( (string) get_post_meta( $node->ID, FlowSchema::DIRECT_ANSWER_META, true ) ),
 			'content' => $content,
 			'blocks' => $blocks,
 			'provider' => $this->provider_key( $node ),

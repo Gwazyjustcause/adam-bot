@@ -18,6 +18,7 @@ final class FlowSchema {
 	public const LABEL_META = '_adam_bot_flow_label';
 	public const ICON_META = '_adam_bot_flow_icon';
 	public const INTRO_META = '_adam_bot_flow_intro';
+	public const DIRECT_ANSWER_META = '_adam_bot_flow_direct_answer';
 	public const LANGUAGE_META = '_adam_bot_flow_language';
 	public const PROVIDER_META = '_adam_bot_flow_provider';
 	public const ACTIONS_META = '_adam_bot_flow_actions';

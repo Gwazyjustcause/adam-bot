@@ -656,6 +656,9 @@ if ( 'admin' === $test_mode ) {
 	test_assert( empty( array_diff( array( 'title', 'adam_type', 'adam_language', 'taxonomy-adam_bot_category', 'adam_source', 'adam_status', 'adam_updated', 'adam_indexed', 'adam_priority' ), array_keys( $columns ) ) ), 'The unified Knowledge list does not expose the required editorial columns.' );
 	$revision_keys = \AdamBot\Knowledge\EntrySchema::revisionMetaKeys();
 	test_assert( in_array( \AdamBot\Knowledge\EntrySchema::ENTRY_TYPE_META, $revision_keys, true ) && in_array( \AdamBot\Knowledge\EntrySchema::SOURCE_META, $revision_keys, true ) && in_array( \AdamBot\Knowledge\EntrySchema::PENDING_SNAPSHOT_META, $revision_keys, true ), 'Unified provenance and synchronization metadata is missing from revisions.' );
+	$guided_revision_callback = $test_hooks['wp_post_revision_meta_keys'][0]['callback'] ?? null;
+	$guided_revision_keys = is_callable( $guided_revision_callback ) ? call_user_func( $guided_revision_callback, array(), 'adam_bot_flow' ) : array();
+	test_assert( in_array( \AdamBot\Guided\FlowSchema::DIRECT_ANSWER_META, $guided_revision_keys, true ) && in_array( \AdamBot\Guided\FlowSchema::ACTIONS_META, $guided_revision_keys, true ), 'Guided answer and action metadata is not revision-safe.' );
 	$original_answer = (string) $test_posts[1]->post_content;
 	$test_post_meta[201][ \AdamBot\Knowledge\EntrySchema::SOURCE_KEY_META ] = '101:about:en';
 	$test_post_meta[201][ \AdamBot\Knowledge\EntrySchema::SOURCE_HASH_META ] = hash( 'sha256', 'accepted-version' );

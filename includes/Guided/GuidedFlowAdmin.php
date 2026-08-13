@@ -57,6 +57,7 @@ final class GuidedFlowAdmin {
 		$label = (string) get_post_meta( $post->ID, FlowSchema::LABEL_META, true );
 		$icon = (string) get_post_meta( $post->ID, FlowSchema::ICON_META, true );
 		$intro = (string) get_post_meta( $post->ID, FlowSchema::INTRO_META, true );
+		$direct_answer = (string) get_post_meta( $post->ID, FlowSchema::DIRECT_ANSWER_META, true );
 		$language = FlowSchema::language( get_post_meta( $post->ID, FlowSchema::LANGUAGE_META, true ) );
 		$provider = sanitize_key( (string) get_post_meta( $post->ID, FlowSchema::PROVIDER_META, true ) );
 		$parents = get_posts( array( 'post_type' => FlowSchema::POST_TYPE, 'post_status' => array( 'publish', 'draft', 'pending', 'private' ), 'posts_per_page' => -1, 'post__not_in' => array( (int) $post->ID ), 'orderby' => 'menu_order title', 'order' => 'ASC', 'fields' => 'all' ) );
@@ -72,6 +73,7 @@ final class GuidedFlowAdmin {
 			<p class="flow-type-dynamic"><label for="adam-bot-flow-provider"><strong><?php esc_html_e( 'Fornecedor', 'adam-bot' ); ?></strong></label><select class="widefat" id="adam-bot-flow-provider" name="adam_bot_flow_provider"><option value=""><?php esc_html_e( 'Selecionar fornecedor', 'adam-bot' ); ?></option><?php foreach ( $this->providers->labels() as $key => $text ) : ?><option value="<?php echo esc_attr( $key ); ?>" <?php selected( $provider, $key ); ?>><?php echo esc_html( $text ); ?></option><?php endforeach; ?></select><span class="description"><?php esc_html_e( 'A configuração detalhada dos fornecedores será ligada numa fase posterior.', 'adam-bot' ); ?></span></p>
 		</div>
 		<p class="description flow-type-answer flow-type-redirect flow-type-dynamic"><?php esc_html_e( 'Use o editor principal acima para escrever a resposta ou as instruções verificadas. Não introduza informação que ainda não tenha sido confirmada.', 'adam-bot' ); ?></p>
+		<p class="flow-type-answer"><label for="adam-bot-flow-direct-answer"><strong><?php esc_html_e( 'Resposta direta', 'adam-bot' ); ?></strong></label><textarea class="widefat" id="adam-bot-flow-direct-answer" name="adam_bot_flow_direct_answer" rows="3" maxlength="500"><?php echo esc_textarea( $direct_answer ); ?></textarea><span class="description"><?php esc_html_e( 'Responda diretamente à pergunta em uma ou duas frases. Use o editor principal abaixo apenas para o contexto útil.', 'adam-bot' ); ?></span></p>
 		<?php
 	}
 
@@ -109,6 +111,7 @@ final class GuidedFlowAdmin {
 		update_post_meta( $post_id, FlowSchema::LABEL_META, sanitize_text_field( wp_unslash( (string) ( $_POST['adam_bot_flow_label'] ?? '' ) ) ) );
 		update_post_meta( $post_id, FlowSchema::ICON_META, substr( sanitize_text_field( wp_unslash( (string) ( $_POST['adam_bot_flow_icon'] ?? '' ) ) ), 0, 8 ) );
 		update_post_meta( $post_id, FlowSchema::INTRO_META, sanitize_textarea_field( wp_unslash( (string) ( $_POST['adam_bot_flow_intro'] ?? '' ) ) ) );
+		update_post_meta( $post_id, FlowSchema::DIRECT_ANSWER_META, sanitize_textarea_field( wp_unslash( (string) ( $_POST['adam_bot_flow_direct_answer'] ?? '' ) ) ) );
 		update_post_meta( $post_id, FlowSchema::LANGUAGE_META, FlowSchema::language( $_POST['adam_bot_flow_language'] ?? 'pt' ) );
 		$provider = sanitize_key( (string) ( $_POST['adam_bot_flow_provider'] ?? '' ) );
 		$known = array_keys( $this->providers->labels() );

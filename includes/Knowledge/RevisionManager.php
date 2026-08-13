@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace AdamBot\Knowledge;
 
+use AdamBot\Guided\FlowSchema;
+
 defined( 'ABSPATH' ) || exit;
 
 /** Adds entry metadata to native WordPress revisions and restores. */
@@ -25,6 +27,8 @@ final class RevisionManager {
 	public function revision_meta_keys( array $keys, string $post_type ): array {
 		if ( 'adam_bot_knowledge' === $post_type ) {
 			$keys = array_values( array_unique( array_merge( $keys, EntrySchema::revisionMetaKeys() ) ) );
+		} elseif ( FlowSchema::POST_TYPE === $post_type ) {
+			$keys = array_values( array_unique( array_merge( $keys, $this->guidedMetaKeys() ) ) );
 		}
 		return $keys;
 	}
@@ -35,7 +39,7 @@ final class RevisionManager {
 		if ( $parent_id <= 0 ) {
 			return;
 		}
-		foreach ( EntrySchema::revisionMetaKeys() as $key ) {
+		foreach ( $this->metaKeysForPost( $parent_id ) as $key ) {
 			$value = get_post_meta( $parent_id, $key, true );
 			if ( '' !== $value && array() !== $value ) {
 				update_metadata( 'post', $revision_id, $key, $value );
@@ -44,7 +48,7 @@ final class RevisionManager {
 	}
 
 	public function restore_meta( int $post_id, int $revision_id ): void {
-		foreach ( EntrySchema::revisionMetaKeys() as $key ) {
+		foreach ( $this->metaKeysForPost( $post_id ) as $key ) {
 			$value = get_metadata( 'post', $revision_id, $key, true );
 			if ( '' === $value || array() === $value ) {
 				delete_post_meta( $post_id, $key );
@@ -90,5 +94,27 @@ final class RevisionManager {
 			return (string) wp_json_encode( $value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
 		}
 		return (string) $value;
+	}
+
+	/** @return array<int,string> */
+	private function guidedMetaKeys(): array {
+		return array(
+			FlowSchema::NODE_TYPE_META,
+			FlowSchema::LABEL_META,
+			FlowSchema::ICON_META,
+			FlowSchema::INTRO_META,
+			FlowSchema::DIRECT_ANSWER_META,
+			FlowSchema::LANGUAGE_META,
+			FlowSchema::PROVIDER_META,
+			FlowSchema::ACTIONS_META,
+			FlowSchema::MIGRATION_STATUS_META,
+			FlowSchema::LEGACY_ID_META,
+			FlowSchema::MIGRATION_NOTES_META,
+		);
+	}
+
+	/** @return array<int,string> */
+	private function metaKeysForPost( int $post_id ): array {
+		return FlowSchema::POST_TYPE === get_post_type( $post_id ) ? $this->guidedMetaKeys() : EntrySchema::revisionMetaKeys();
 	}
 }
