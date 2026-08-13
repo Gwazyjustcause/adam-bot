@@ -9,6 +9,7 @@
 
 	class GuidedApi {
 		constructor( settings ) {
+			this.settings = settings || {};
 			this.endpoint = settings && typeof settings.guidedUrl === 'string' ? settings.guidedUrl : '';
 		}
 
@@ -20,6 +21,12 @@
 			try { payload = await response.json(); } catch ( error ) { throw new Error( 'Invalid guided REST response.' ); }
 			if ( ! response.ok || ! payload || typeof payload !== 'object' ) throw new Error( 'Unsuccessful guided REST response.' );
 			return payload;
+		}
+
+		track( event, data = {} ) {
+			const endpoint = this.settings && typeof this.settings.guidedEventsUrl === 'string' ? this.settings.guidedEventsUrl : '';
+			if ( ! endpoint || ! navigator.sendBeacon ) return;
+			try { navigator.sendBeacon( endpoint, new Blob( [ JSON.stringify( { event, node_id: Number( data.nodeId || 0 ), target_id: Number( data.targetId || 0 ), action_type: String( data.actionType || '' ).slice( 0, 30 ) } ) ], { type: 'application/json' } ) ); } catch ( error ) {}
 		}
 	}
 
@@ -98,8 +105,8 @@
 		handleAction( event ) {
 			const target = event.target.closest( '[data-guided-node], [data-guided-home], [data-guided-back], [data-guided-reset]' );
 			if ( ! target || ! this.root.contains( target ) || this.loading ) return;
-			if ( target.hasAttribute( 'data-guided-home' ) || target.hasAttribute( 'data-guided-reset' ) ) { this.goHome(); return; }
-			if ( target.hasAttribute( 'data-guided-back' ) ) { this.goBack(); return; }
+			if ( target.hasAttribute( 'data-guided-home' ) || target.hasAttribute( 'data-guided-reset' ) ) { this.api.track( 'home', { nodeId: this.currentId } ); this.goHome(); return; }
+			if ( target.hasAttribute( 'data-guided-back' ) ) { this.api.track( 'back', { nodeId: this.currentId } ); this.goBack(); return; }
 			const id = Number.parseInt( target.getAttribute( 'data-guided-node' ) || '0', 10 );
 			if ( id > 0 ) this.load( id, true );
 		}
@@ -128,6 +135,7 @@
 				if ( push && this.currentId !== id ) this.history = [ ...this.history, this.currentId ].slice( -MAX_HISTORY );
 				this.currentId = id;
 				this.currentNode = node;
+				this.api.track( 'view', { nodeId: id } );
 				this.persistState();
 				this.render( node );
 			} catch ( error ) {
@@ -170,7 +178,7 @@
 		renderActions( actions ) {
 			const region = document.createElement( 'div' ); region.className = 'adam-bot__guided-actions';
 			const label = document.createElement( 'h4' ); label.textContent = this.strings.guidedNext || 'Próximos passos'; region.appendChild( label );
-			actions.forEach( ( action ) => { const destination = action.destination || {}; let element; if ( destination.type === 'node' && Number( destination.id ) > 0 ) { element = document.createElement( 'button' ); element.type = 'button'; element.setAttribute( 'data-guided-node', String( destination.id ) ); } else if ( destination.url ) { element = document.createElement( 'a' ); element.href = destination.url; element.target = destination.type === 'url' ? '_blank' : '_self'; element.rel = destination.type === 'url' ? 'noopener noreferrer' : ''; } else return; element.className = `adam-bot__guided-action${ action.primary ? ' adam-bot__guided-action--primary' : '' }`; element.textContent = `${ action.label } →`; region.appendChild( element ); } );
+			actions.forEach( ( action ) => { const destination = action.destination || {}; let element; if ( destination.type === 'node' && Number( destination.id ) > 0 ) { element = document.createElement( 'button' ); element.type = 'button'; element.setAttribute( 'data-guided-node', String( destination.id ) ); } else if ( destination.url ) { element = document.createElement( 'a' ); element.href = destination.url; element.target = destination.type === 'url' ? '_blank' : '_self'; element.rel = destination.type === 'url' ? 'noopener noreferrer' : ''; } else return; element.className = `adam-bot__guided-action${ action.primary ? ' adam-bot__guided-action--primary' : '' }`; element.textContent = `${ action.label } →`; element.addEventListener( 'click', () => this.api.track( 'action', { nodeId: this.currentId, targetId: destination.id || 0, actionType: destination.type } ) ); region.appendChild( element ); } );
 			this.stage.appendChild( region );
 		}
 

@@ -10,15 +10,21 @@ use AdamBot\Knowledge\EntrySchema;
 use WP_REST_Request;
 use WP_REST_Response;
 use WP_REST_Server;
+use AdamBot\Analytics\Analytics;
+use AdamBot\API\RateLimiter;
 
 defined( 'ABSPATH' ) || exit;
 
 /** Exposes published guided nodes without exposing editorial or migration data. */
 final class GuidedNavigationAPI {
 	private DynamicProviderRegistry $providers;
+	private Analytics $analytics;
+	private RateLimiter $rate_limiter;
 
-	public function __construct( DynamicProviderRegistry $providers ) {
+	public function __construct( DynamicProviderRegistry $providers, Analytics $analytics, RateLimiter $rate_limiter ) {
 		$this->providers = $providers;
+		$this->analytics = $analytics;
+		$this->rate_limiter = $rate_limiter;
 	}
 
 	public function register_hooks(): void {
@@ -34,6 +40,18 @@ final class GuidedNavigationAPI {
 		);
 		register_rest_route( 'adam-bot/v1', '/guided', $common );
 		register_rest_route( 'adam-bot/v1', '/guided/(?P<id>\d+)', array_merge( $common, array( 'args' => array( 'id' => array( 'required' => true, 'sanitize_callback' => 'absint' ) ) ) ) );
+		register_rest_route( 'adam-bot/v1', '/guided-events', array( 'methods' => defined( 'WP_REST_Server::CREATABLE' ) ? WP_REST_Server::CREATABLE : 'POST', 'permission_callback' => '__return_true', 'callback' => array( $this, 'record_event' ) ) );
+	}
+
+	public function record_event( WP_REST_Request $request ): WP_REST_Response {
+		if ( ! $this->rate_limiter->consume() ) return new WP_REST_Response( array( 'success' => false ), 429 );
+		$event = sanitize_key( (string) $request->get_param( 'event' ) );
+		$node_id = absint( $request->get_param( 'node_id' ) );
+		$target_id = absint( $request->get_param( 'target_id' ) );
+		$action_type = sanitize_key( (string) $request->get_param( 'action_type' ) );
+		if ( ! in_array( $event, array( 'view', 'action', 'back', 'home', 'error' ), true ) ) return new WP_REST_Response( array( 'success' => false ), 400 );
+		$this->analytics->recordGuided( $event, $node_id, $target_id, $action_type );
+		return new WP_REST_Response( array( 'success' => true ), 200 );
 	}
 
 	/** Returns the root menu or one published node. */

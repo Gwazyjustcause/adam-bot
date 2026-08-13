@@ -50,6 +50,7 @@ final class Analytics {
 		$data['daily'] = isset( $data['daily'] ) && is_array( $data['daily'] ) ? array_slice( $data['daily'], -self::MAX_DAYS, null, true ) : array();
 		$data['category_usage'] = isset( $data['category_usage'] ) && is_array( $data['category_usage'] ) ? $data['category_usage'] : array();
 		$data['keyword_usage'] = isset( $data['keyword_usage'] ) && is_array( $data['keyword_usage'] ) ? $data['keyword_usage'] : array();
+		$data['guided'] = isset( $data['guided'] ) && is_array( $data['guided'] ) ? $data['guided'] : array();
 		$data['total_confidence'] = max( 0, (int) ( $data['total_confidence'] ?? 0 ) );
 
 		return $data;
@@ -76,7 +77,36 @@ final class Analytics {
 			'category_usage'         => array(),
 			'keyword_usage'          => array(),
 			'total_confidence'       => 0,
+			'guided'                 => array( 'node_views' => array(), 'actions' => array(), 'back' => 0, 'home' => 0, 'errors' => 0 ),
 		);
+	}
+
+	/** Records one bounded guided-navigation event without visitor identifiers or labels from user input. */
+	public function recordGuided( string $event, int $node_id = 0, int $target_id = 0, string $action_type = '' ): void {
+		$data = $this->all();
+		$event = sanitize_key( $event );
+		if ( ! in_array( $event, array( 'view', 'action', 'back', 'home', 'error' ), true ) ) return;
+		$data['guided'] = array_merge( array( 'node_views' => array(), 'actions' => array(), 'back' => 0, 'home' => 0, 'errors' => 0 ), (array) $data['guided'] );
+		if ( 'view' === $event ) {
+			$key = (string) max( 0, $node_id );
+			$data['guided']['node_views'][ $key ] = (int) ( $data['guided']['node_views'][ $key ] ?? 0 ) + 1;
+		} elseif ( 'action' === $event ) {
+			$key = sanitize_key( $action_type );
+			if ( '' === $key ) return;
+			$data['guided']['actions'][ $key ] = (int) ( $data['guided']['actions'][ $key ] ?? 0 ) + 1;
+		} else {
+			$data['guided'][ $event ] = (int) ( $data['guided'][ $event ] ?? 0 ) + 1;
+		}
+		update_option( self::OPTION_KEY, $data, false );
+	}
+
+	/** @return array<string,mixed> */
+	public function getGuidedSummary(): array {
+		$guided = (array) ( $this->all()['guided'] ?? array() );
+		$views = isset( $guided['node_views'] ) && is_array( $guided['node_views'] ) ? $guided['node_views'] : array();
+		$actions = isset( $guided['actions'] ) && is_array( $guided['actions'] ) ? $guided['actions'] : array();
+		arsort( $views, SORT_NUMERIC ); arsort( $actions, SORT_NUMERIC );
+		return array( 'node_views' => array_slice( $views, 0, 20, true ), 'actions' => array_slice( $actions, 0, 20, true ), 'back' => (int) ( $guided['back'] ?? 0 ), 'home' => (int) ( $guided['home'] ?? 0 ), 'errors' => (int) ( $guided['errors'] ?? 0 ) );
 	}
 
 	/**

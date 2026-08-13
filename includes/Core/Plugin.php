@@ -138,7 +138,7 @@ final class Plugin {
 			$knowledge_migration,
 			new Assets( $experience_settings ),
 			new GuidedFlowAdmin( $this->dynamic_providers ),
-			new GuidedNavigationAPI( $this->dynamic_providers ),
+			new GuidedNavigationAPI( $this->dynamic_providers, $analytics, new RateLimiter() ),
 			new GuidedFlowMigration(),
 		);
 

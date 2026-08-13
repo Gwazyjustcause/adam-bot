@@ -72,6 +72,7 @@ final class Assets {
 			array(
 				'restUrl'      => esc_url_raw( rest_url( 'adam-bot/v1/chat' ) ),
 				'guidedUrl'    => esc_url_raw( rest_url( 'adam-bot/v1/guided' ) ),
+				'guidedEventsUrl' => esc_url_raw( rest_url( 'adam-bot/v1/guided-events' ) ),
 				'nonce'        => wp_create_nonce( 'wp_rest' ),
 				'quickActions' => $this->experience_settings->all()['quick_actions'],
 				'strings'      => array(

@@ -11,6 +11,7 @@ namespace AdamBot\Admin;
 
 use AdamBot\Analytics\Analytics;
 use AdamBot\Analytics\SearchInsights;
+use AdamBot\Guided\FlowSchema;
 use AdamBot\Knowledge\KnowledgeAdmin;
 use AdamBot\Knowledge\Sources\ManualSource;
 use AdamBot\Knowledge\SiteKnowledgeIndexer;
@@ -118,6 +119,8 @@ final class SettingsPage {
 			</div>
 			<h2><?php esc_html_e( 'Conhecimento mais consultado', 'adam-bot' ); ?></h2>
 			<?php $this->renderEntryTable( $this->analytics->getMostViewedEntries( 5 ) ); ?>
+			<h2><?php esc_html_e( 'Utilização da estrutura guiada', 'adam-bot' ); ?></h2>
+			<?php $this->renderGuidedAnalytics( $this->analytics->getGuidedSummary() ); ?>
 		</div>
 		<?php
 	}
@@ -296,6 +299,19 @@ final class SettingsPage {
 			echo '<tr><td>' . esc_html( (string) ( $row['timestamp'] ?? '' ) ) . '</td><td><code>' . esc_html( (string) ( $row['intent'] ?? '' ) ) . '</code></td><td>' . esc_html( '' !== $provider ? $provider : __( 'Sem correspondência', 'adam-bot' ) ) . '</td><td>' . esc_html( (string) ( $row['result_count'] ?? 0 ) ) . '</td><td>' . esc_html( (string) ( $row['confidence'] ?? 0 ) ) . '%</td><td>' . esc_html( (string) ( $row['search_duration_ms'] ?? 0 ) ) . ' ms</td><td>' . esc_html( (string) ( $row['fallback_provider'] ?? '' ) ) . '</td></tr>';
 		}
 		echo '</tbody></table>';
+	}
+
+	/** @param array<string,mixed> $summary */
+	private function renderGuidedAnalytics( array $summary ): void {
+		$views = (array) ( $summary['node_views'] ?? array() );
+		$actions = (array) ( $summary['actions'] ?? array() );
+		echo '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px;max-width:1000px;">';
+		echo '<div><h3>' . esc_html__( 'Nós mais visitados', 'adam-bot' ) . '</h3><table class="widefat striped"><thead><tr><th>' . esc_html__( 'Nó', 'adam-bot' ) . '</th><th>' . esc_html__( 'Vistas', 'adam-bot' ) . '</th></tr></thead><tbody>';
+		if ( empty( $views ) ) echo '<tr><td colspan="2">' . esc_html__( 'Ainda não existem dados.', 'adam-bot' ) . '</td></tr>';
+		foreach ( $views as $node_id => $count ) { $node = absint( $node_id ) > 0 ? get_post( absint( $node_id ) ) : null; $label = is_object( $node ) ? (string) get_post_meta( $node->ID, FlowSchema::LABEL_META, true ) : __( 'Raiz', 'adam-bot' ); $label = '' !== $label ? $label : ( is_object( $node ) ? (string) $node->post_title : __( 'Raiz', 'adam-bot' ) ); echo '<tr><td>' . esc_html( $label ) . '</td><td>' . esc_html( (string) $count ) . '</td></tr>'; }
+		echo '</tbody></table></div><div><h3>' . esc_html__( 'Ações utilizadas', 'adam-bot' ) . '</h3>';
+		$this->renderUsageTable( $actions, __( 'Tipo de ação', 'adam-bot' ) );
+		echo '<p class="description">' . esc_html( sprintf( __( 'Voltar: %d · Início: %d · Erros: %d', 'adam-bot' ), (int) ( $summary['back'] ?? 0 ), (int) ( $summary['home'] ?? 0 ), (int) ( $summary['errors'] ?? 0 ) ) ) . '</p></div></div>';
 	}
 
 	/** @param array<string,int> $rows Usage rows. */
