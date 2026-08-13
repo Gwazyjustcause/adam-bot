@@ -645,7 +645,7 @@ if ( 'admin' === $test_mode ) {
 	test_assert( isset( $test_post_types['adam_bot_flow'] ) && true === ( $test_post_types['adam_bot_flow']['hierarchical'] ?? false ), 'The guided flow post type or hierarchy was not registered.' );
 	test_assert( in_array( 'revisions', $test_post_types['adam_bot_knowledge']['supports'], true ), 'Knowledge version history is not enabled.' );
 	test_assert( isset( $test_admin['taxonomies']['adam_bot_category'] ), 'Unlimited Knowledge categories were not registered.' );
-	$required_menus = array( 'adam-bot', 'adam-bot-conversations', 'edit.php?post_type=adam_bot_knowledge', 'adam-bot-search-analytics', 'adam-bot-unanswered', 'adam-bot-providers', 'adam-bot-settings', 'adam-bot-flow' );
+	$required_menus = array( 'adam-bot', 'adam-bot-conversations', 'edit.php?post_type=adam_bot_knowledge', 'adam-bot-search-analytics', 'adam-bot-unanswered', 'adam-bot-providers', 'adam-bot-settings', 'adam-bot-flow', 'adam-bot-guided-migration' );
 	test_assert( empty( array_diff( $required_menus, array_keys( $test_admin['submenus'] ) ) ) && ! isset( $test_admin['submenus']['edit.php?post_type=adam_bot_faq'] ), 'Unified Knowledge admin navigation is incomplete.' );
 	test_assert( isset( $test_routes['adam-bot/v1/guided'], $test_routes['adam-bot/v1/guided/(?P<id>\\d+)'] ), 'Guided navigation REST routes were not registered.' );
 	$meta_box_ids = array_map( static function ( array $box ): string { return (string) ( $box[0] ?? '' ); }, $test_meta_boxes );

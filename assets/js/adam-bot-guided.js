@@ -149,7 +149,8 @@
 			if ( node.icon ) { const icon = document.createElement( 'span' ); icon.className = 'adam-bot__guided-icon'; icon.setAttribute( 'aria-hidden', 'true' ); icon.textContent = node.icon; heading.appendChild( icon ); }
 			const title = document.createElement( 'h3' ); title.textContent = node.id === 0 ? ( this.strings.guidedWelcome || 'Olá! 👋 Em que podemos ajudar?' ) : String( node.label || '' ); heading.appendChild( title ); this.stage.appendChild( heading );
 			if ( node.intro ) { const intro = document.createElement( 'p' ); intro.className = 'adam-bot__guided-intro'; intro.textContent = node.intro; this.stage.appendChild( intro ); }
-			if ( node.content ) this.renderContent( node.content );
+			if ( Array.isArray( node.blocks ) && node.blocks.length ) this.renderBlocks( node.blocks );
+			else if ( node.content ) this.renderContent( node.content );
 			if ( node.type === 'dynamic' && ! node.content ) { const note = document.createElement( 'p' ); note.className = 'adam-bot__guided-note'; note.textContent = this.strings.guidedPreparing || 'Esta informação está a ser preparada.'; this.stage.appendChild( note ); }
 			if ( Array.isArray( node.children ) && node.children.length ) this.renderChoices( node.children );
 			if ( Array.isArray( node.actions ) && node.actions.length ) this.renderActions( node.actions );
@@ -173,6 +174,7 @@
 		}
 
 		renderContent( content ) { String( content ).split(/\n+/).map( ( line ) => line.trim() ).filter( Boolean ).forEach( ( line ) => { const paragraph = document.createElement( 'p' ); paragraph.textContent = line.replace( /^[-*+]\s+/, '• ' ); this.stage.appendChild( paragraph ); } ); }
+		renderBlocks( blocks ) { blocks.forEach( ( block ) => { if ( ! block || typeof block !== 'object' || ! block.text ) return; const type = String( block.type || 'paragraph' ); let element; if ( type === 'heading' ) element = document.createElement( 'h4' ); else if ( type === 'bullet_list' || type === 'numbered_list' ) { element = document.createElement( type === 'numbered_list' ? 'ol' : 'ul' ); String( block.text ).split(/\n+/).map( ( item ) => item.replace( /^\s*[-*+\d.)]+\s*/, '' ).trim() ).filter( Boolean ).forEach( ( item ) => { const li = document.createElement( 'li' ); li.textContent = item; element.appendChild( li ); } ); } else { element = document.createElement( 'p' ); element.textContent = String( block.text ); } element.className = `adam-bot__guided-block adam-bot__guided-block--${ type.replace( /[^a-z0-9_-]/gi, '' ) }`; this.stage.appendChild( element ); } ); }
 		renderLoading() { this.stage.textContent = ''; const loading = document.createElement( 'p' ); loading.className = 'adam-bot__guided-loading'; loading.textContent = this.strings.guidedLoading || 'A carregar…'; this.stage.appendChild( loading ); }
 	renderError() { this.stage.textContent = ''; const error = document.createElement( 'p' ); error.className = 'adam-bot__guided-error'; error.textContent = this.strings.guidedError || 'Não foi possível carregar esta opção. Tente novamente.'; this.stage.appendChild( error ); }
 

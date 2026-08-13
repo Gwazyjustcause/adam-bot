@@ -39,6 +39,7 @@ use AdamBot\Knowledge\Sources\ManualSource;
 use AdamBot\UX\ExperienceSettings;
 use AdamBot\Guided\GuidedFlowAdmin;
 use AdamBot\Guided\GuidedNavigationAPI;
+use AdamBot\Guided\GuidedFlowMigration;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -138,6 +139,7 @@ final class Plugin {
 			new Assets( $experience_settings ),
 			new GuidedFlowAdmin( $this->dynamic_providers ),
 			new GuidedNavigationAPI( $this->dynamic_providers ),
+			new GuidedFlowMigration(),
 		);
 
 		foreach ( $this->components as $component ) {
