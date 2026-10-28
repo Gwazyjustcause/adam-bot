@@ -5,6 +5,7 @@
 .adam-bot {
 	--adam-accent: #16a36a;
 	--adam-accent-strong: #087a50;
+	--adam-on-accent: #ffffff;
 	--adam-accent-soft: #e8f8f1;
 	--adam-ink: #15251f;
 	--adam-ink-muted: #62736c;
@@ -250,8 +251,8 @@
 	gap: var(--adam-space-3);
 	color: #ffffff;
 	background:
-		radial-gradient(circle at 15% -25%, rgba(83, 220, 157, 0.58), transparent 45%),
-		linear-gradient(135deg, #12382c 0%, #0a6748 62%, #0b7b53 100%);
+		radial-gradient(circle at 15% -25%, rgba(83, 220, 157, 0.15), transparent 45%),
+		linear-gradient(135deg, #12382c 0%, #0a6748 62%, #0b6b49 100%);
 }
 
 .adam-bot__header::after {
@@ -295,7 +296,7 @@
 
 .adam-bot__heading p {
 	margin-top: 2px;
-	color: rgba(255, 255, 255, 0.76);
+	color: #ffffff;
 	font-size: 12.5px;
 	line-height: 1.35;
 }
@@ -529,6 +530,22 @@
 .adam-bot__website-item h4 { margin: 0 0 8px; font-size: 16px; }
 .adam-bot__website-item p { margin: 0 0 12px; font-size: 14px; line-height: 1.6; }
 .adam-bot__website-item .adam-bot__guided-note { padding: 0; color: var(--adam-ink-muted); background: transparent; }
+
+/* Keep host-theme heading and paragraph colors out of the guided assistant. */
+#adam-bot-root .adam-bot__guided-stage :is(h1, h2, h3, h4, h5, h6, p, li) {
+	color: var(--adam-ink);
+}
+
+#adam-bot-root .adam-bot__guided-stage > p,
+#adam-bot-root .adam-bot__guided-stage :is(.adam-bot__guided-intro, .adam-bot__guided-note, .adam-bot__guided-loading),
+#adam-bot-root .adam-bot__guided-choices h4,
+#adam-bot-root .adam-bot__guided-actions h4 {
+	color: var(--adam-ink-muted);
+}
+
+#adam-bot-root .adam-bot__guided-stage .adam-bot__guided-error {
+	color: #9c2f2f;
+}
 
 .adam-bot__conversation::-webkit-scrollbar {
 	width: 6px;
@@ -950,6 +967,7 @@
 }
 
 .adam-bot__knowledge-card h4 {
+	color: var(--adam-ink);
 	font-size: 13px;
 }
 
@@ -975,7 +993,7 @@
 	padding: 8px 10px;
 	flex: 0 0 auto;
 	border-radius: 10px;
-	color: #ffffff;
+	color: var(--adam-on-accent);
 	background: var(--adam-accent-strong);
 	font-size: 11px;
 	font-weight: 750;
@@ -1038,7 +1056,7 @@
 
 .adam-bot__chip:hover {
 	border-color: rgba(8, 122, 80, 0.45) !important;
-	color: #07583c;
+	color: var(--adam-accent-strong);
 	background: var(--adam-accent-soft);
 	transform: translateY(-1px);
 }
@@ -1208,6 +1226,7 @@
 	.adam-bot {
 		--adam-accent: #48d89b;
 		--adam-accent-strong: #75e9b7;
+		--adam-on-accent: #102b20;
 		--adam-accent-soft: #173f31;
 		--adam-ink: #edf8f3;
 		--adam-ink-muted: #9cafa6;
