@@ -524,6 +524,12 @@
 .adam-bot__guided-loading { color: var(--adam-ink-muted); }
 .adam-bot__guided-error { color: #9c2f2f; background: #fff1f1; }
 
+.adam-bot__website-items { display: grid; gap: 12px; }
+.adam-bot__website-item { min-width: 0; padding: 16px; border: 1px solid var(--adam-border); border-radius: 14px; background: var(--adam-surface-raised); overflow-wrap: anywhere; }
+.adam-bot__website-item h4 { margin: 0 0 8px; font-size: 16px; }
+.adam-bot__website-item p { margin: 0 0 12px; font-size: 14px; line-height: 1.6; }
+.adam-bot__website-item .adam-bot__guided-note { padding: 0; color: var(--adam-ink-muted); background: transparent; }
+
 .adam-bot__conversation::-webkit-scrollbar {
 	width: 6px;
 }

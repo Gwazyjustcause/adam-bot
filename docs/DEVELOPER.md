@@ -105,13 +105,13 @@ O metadado de proveniência permite que **Reconstruir a base de conhecimento** d
 
 Páginas inglesas fornecidas por Polylang ou WPML são indexadas diretamente. Quando não existem, a tradução de conteúdo público decorre em pequenos lotes WP-Cron e cria uma variante inglesa independente na base de dados. O serviço remoto predefinido é MyMemory; integrações empresariais devem substituí-lo através de `adam_bot_site_index_translation`. Nunca envie conteúdo privado neste filtro.
 
-## Respostas iniciais da estrutura guiada
+## Conteúdo do website na estrutura guiada
 
-`Guided\WebsiteAnswers` acrescenta 14 respostas curtas em português, revistas a partir do website público em 28/10/2026. Incluem adesão, modalidades, jogadores independentes, outra APD, renovação, vantagens, associação, equipas, campos, comunidade, atividades, colaboração e contactos. Os valores das quotas são consultados na página de adesão para evitar guardar preços desatualizados nas respostas iniciais.
+`Guided\WebsiteContent` lê informação pública no momento da resposta, sem criar ou atualizar entradas. Os ramos gerados de equipas e campos mostram descrições, localização, recrutamento e links canónicos devolvidos pelo contrato público `/adam-comunidade/v1/equipas` ou `/campos`. O pedido REST é interno ao WordPress, limitado a dez perfis; o botão do diretório permite consultar os restantes. Não existem pedidos HTTP nem cópias de perfis na base de conhecimento.
 
-A instalação acontece em `admin_init`, depois da migração dos ramos. Só administradores com `manage_options` a executam. Cada resposta aponta para uma página WordPress publicada e sem palavra-passe, resolvida pelo caminho local; os links usam o permalink atual. Páginas ou ramos em falta são ignorados e voltam a ser tentados na próxima visita administrativa. A resposta guarda a página de origem e uma nota de proveniência. Não consulta serviços externos em execução.
+Os links dos diretórios usam os IDs guardados pelo plugin Comunidade, com resolução pelo caminho quando não existe um ID configurado. Só páginas publicadas e sem palavra-passe são ligadas. As respostas consolidadas antigas de associação e adesão passam a ler as páginas atuais, evitando misturas de fontes e idiomas. Parcerias e colaboração encaminham para Contactos, em vez dos antigos endereços de parceiros ou instituições. Falhas da API não impedem o acesso ao diretório.
 
-As chaves `website-*` impedem repetições, incluindo nós em rascunho ou no lixo. Uma pergunta já existente no mesmo ramo também é preservada. Não atualiza automaticamente respostas existentes quando a página muda: os textos continuam editáveis em **ADAM BOT > Estrutura guiada**. A migração antiga mantém o seu comportamento; este preenchimento não a volta a executar nem altera nós anteriores. Verificar com `php tests/website-answers.php` e os testes de smoke habituais.
+A atualização aplica-se aos nós gerados `root-*`, `group-*` e `dynamic-*`. Nós personalizados e nós explicitamente marcados como Revisto mantêm a resposta editorial. O preenchimento automático `WebsiteAnswers` foi removido; respostas `website-*` já instaladas continuam editáveis e não são apagadas. Não é necessário popular nem reconstruir a base para esta correção. Verificar com `php tests/guided-website.php`, `node tests/guided-website.js` e os testes de smoke habituais.
 
 ## Segurança e privacidade
 

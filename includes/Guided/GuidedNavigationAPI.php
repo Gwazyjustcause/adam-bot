@@ -72,7 +72,7 @@ final class GuidedNavigationAPI {
 		$children = get_posts( array( 'post_type' => FlowSchema::POST_TYPE, 'post_status' => 'publish', 'post_parent' => (int) $node->ID, 'posts_per_page' => 100, 'orderby' => 'menu_order title', 'order' => 'ASC', 'no_found_rows' => true ) );
 		$blocks = EntrySchema::sanitizeBlocks( get_post_meta( $node->ID, EntrySchema::RESPONSE_BLOCKS_META, true ) );
 		$content = trim( wp_strip_all_tags( strip_shortcodes( (string) $node->post_content ) ) );
-		return array(
+		$response = array(
 			'id' => (int) $node->ID,
 			'type' => $type,
 			'label' => $this->label( $node ),
@@ -86,6 +86,7 @@ final class GuidedNavigationAPI {
 			'children' => array_map( array( $this, 'serialize_choice' ), array_filter( $children, array( $this, 'is_public_node' ) ) ),
 			'actions' => $this->serialize_actions( get_post_meta( $node->ID, FlowSchema::ACTIONS_META, true ) ),
 		);
+		return ( new WebsiteContent() )->enrich( $node, $response );
 	}
 
 	private function serialize_choice( $node ): array {

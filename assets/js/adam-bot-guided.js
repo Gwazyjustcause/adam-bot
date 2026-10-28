@@ -162,7 +162,8 @@
 			if ( node.direct_answer ) { const answer = document.createElement( 'div' ); answer.className = 'adam-bot__guided-direct-answer'; answer.textContent = node.direct_answer; this.stage.appendChild( answer ); }
 			if ( Array.isArray( node.blocks ) && node.blocks.length ) this.renderBlocks( node.blocks );
 			else if ( node.content ) this.renderContent( node.content );
-			if ( node.type === 'dynamic' && ! node.content ) { const note = document.createElement( 'p' ); note.className = 'adam-bot__guided-note'; note.textContent = this.strings.guidedPreparing || 'Esta informação está a ser preparada.'; this.stage.appendChild( note ); }
+			if ( Array.isArray( node.items ) && node.items.length ) this.renderWebsiteItems( node.items );
+			if ( node.type === 'dynamic' && ! node.content && ! node.direct_answer && ! ( Array.isArray( node.items ) && node.items.length ) ) { const note = document.createElement( 'p' ); note.className = 'adam-bot__guided-note'; note.textContent = this.strings.guidedPreparing || 'Esta informação está a ser preparada.'; this.stage.appendChild( note ); }
 			if ( Array.isArray( node.children ) && node.children.length ) this.renderChoices( node.children );
 			if ( Array.isArray( node.actions ) && node.actions.length ) this.renderActions( node.actions );
 			if ( node.id === 0 && ( ! Array.isArray( node.children ) || ! node.children.length ) ) { const empty = document.createElement( 'p' ); empty.className = 'adam-bot__guided-note'; empty.textContent = this.strings.guidedEmpty || 'A estrutura guiada ainda está a ser preparada.'; this.stage.appendChild( empty ); }
@@ -174,6 +175,27 @@
 			const region = document.createElement( 'div' ); region.className = 'adam-bot__guided-choices';
 			const label = document.createElement( 'h4' ); label.textContent = this.strings.guidedChoices || 'Escolha uma opção'; region.appendChild( label );
 			choices.forEach( ( choice ) => { const button = document.createElement( 'button' ); button.type = 'button'; button.className = 'adam-bot__guided-choice'; button.setAttribute( 'data-guided-node', String( choice.id ) ); if ( choice.icon ) { const icon = document.createElement( 'span' ); icon.className = 'adam-bot__guided-choice-icon'; icon.setAttribute( 'aria-hidden', 'true' ); icon.textContent = choice.icon; button.appendChild( icon ); } const text = document.createElement( 'span' ); text.textContent = choice.label; button.appendChild( text ); const arrow = document.createElement( 'span' ); arrow.className = 'adam-bot__guided-arrow'; arrow.setAttribute( 'aria-hidden', 'true' ); arrow.textContent = '→'; button.appendChild( arrow ); region.appendChild( button ); } );
+			this.stage.appendChild( region );
+		}
+
+		renderWebsiteItems( items ) {
+			const region = document.createElement( 'div' );
+			region.className = 'adam-bot__website-items';
+			items.forEach( ( item ) => {
+				const card = document.createElement( 'article' );
+				card.className = 'adam-bot__website-item';
+				const heading = document.createElement( 'h4' ); heading.textContent = item.title; card.appendChild( heading );
+				if ( item.details ) { const details = document.createElement( 'p' ); details.className = 'adam-bot__guided-note'; details.textContent = item.details; card.appendChild( details ); }
+				if ( item.description ) { const description = document.createElement( 'p' ); description.textContent = item.description; card.appendChild( description ); }
+				try {
+					const url = new URL( item.url, window.location.origin );
+					if ( url.origin === window.location.origin && /^https?:$/.test( url.protocol ) ) {
+						const link = document.createElement( 'a' ); link.href = url.href; link.className = 'adam-bot__guided-action'; link.textContent = `${ item.button } →`; card.appendChild( link );
+						link.addEventListener( 'click', () => this.api.track( 'action', { nodeId: this.currentId, actionType: 'page' } ) );
+					}
+				} catch ( error ) {}
+				region.appendChild( card );
+			} );
 			this.stage.appendChild( region );
 		}
 

@@ -3,7 +3,7 @@ Contributors: adam
 Tags: chat, assistant, knowledge
 Requires at least: 6.3
 Requires PHP: 7.4
-Stable tag: 1.11.1
+Stable tag: 1.11.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -123,6 +123,11 @@ session storage for recovery and are cleared when the browsing session ends.
 Server analytics contain aggregate counters and scrubbed common-question samples.
 
 == Changelog ==
+
+= 1.11.2 =
+* Read current public team and field descriptions and canonical profile links directly from the Community REST API inside WordPress.
+* Replace obsolete consolidated navigation destinations with current published pages; direct partnership enquiries to Contactos.
+* Remove automatic starter-answer population. Existing records remain editable and no rebuild is required for this fix.
 
 = 1.11.1 =
 * Added 14 concise Portuguese guided answers based on the public ADAM website, with buttons to their source pages.
