@@ -105,6 +105,14 @@ O metadado de proveniência permite que **Reconstruir a base de conhecimento** d
 
 Páginas inglesas fornecidas por Polylang ou WPML são indexadas diretamente. Quando não existem, a tradução de conteúdo público decorre em pequenos lotes WP-Cron e cria uma variante inglesa independente na base de dados. O serviço remoto predefinido é MyMemory; integrações empresariais devem substituí-lo através de `adam_bot_site_index_translation`. Nunca envie conteúdo privado neste filtro.
 
+## Respostas iniciais da estrutura guiada
+
+`Guided\WebsiteAnswers` acrescenta 14 respostas curtas em português, revistas a partir do website público em 28/10/2026. Incluem adesão, modalidades, jogadores independentes, outra APD, renovação, vantagens, associação, equipas, campos, comunidade, atividades, colaboração e contactos. Os valores das quotas são consultados na página de adesão para evitar guardar preços desatualizados nas respostas iniciais.
+
+A instalação acontece em `admin_init`, depois da migração dos ramos. Só administradores com `manage_options` a executam. Cada resposta aponta para uma página WordPress publicada e sem palavra-passe, resolvida pelo caminho local; os links usam o permalink atual. Páginas ou ramos em falta são ignorados e voltam a ser tentados na próxima visita administrativa. A resposta guarda a página de origem e uma nota de proveniência. Não consulta serviços externos em execução.
+
+As chaves `website-*` impedem repetições, incluindo nós em rascunho ou no lixo. Uma pergunta já existente no mesmo ramo também é preservada. Não atualiza automaticamente respostas existentes quando a página muda: os textos continuam editáveis em **ADAM BOT > Estrutura guiada**. A migração antiga mantém o seu comportamento; este preenchimento não a volta a executar nem altera nós anteriores. Verificar com `php tests/website-answers.php` e os testes de smoke habituais.
+
 ## Segurança e privacidade
 
 - Valide capacidades e nonces em todas as operações administrativas.

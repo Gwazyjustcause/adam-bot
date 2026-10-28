@@ -40,6 +40,7 @@ use AdamBot\UX\ExperienceSettings;
 use AdamBot\Guided\GuidedFlowAdmin;
 use AdamBot\Guided\GuidedNavigationAPI;
 use AdamBot\Guided\GuidedFlowMigration;
+use AdamBot\Guided\WebsiteAnswers;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -140,6 +141,7 @@ final class Plugin {
 			new GuidedFlowAdmin( $this->dynamic_providers ),
 			new GuidedNavigationAPI( $this->dynamic_providers, $analytics, new RateLimiter() ),
 			new GuidedFlowMigration(),
+			new WebsiteAnswers(),
 		);
 
 		foreach ( $this->components as $component ) {

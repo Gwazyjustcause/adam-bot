@@ -3,7 +3,7 @@ Contributors: adam
 Tags: chat, assistant, knowledge
 Requires at least: 6.3
 Requires PHP: 7.4
-Stable tag: 1.11.0
+Stable tag: 1.11.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -123,6 +123,11 @@ session storage for recovery and are cleared when the browsing session ends.
 Server analytics contain aggregate counters and scrubbed common-question samples.
 
 == Changelog ==
+
+= 1.11.1 =
+* Added 14 concise Portuguese guided answers based on the public ADAM website, with buttons to their source pages.
+* Populate missing answers on administrator visits after the guided roots exist; skip unavailable or password-protected pages and retry later.
+* Preserve existing editorial answers, drafts, deleted entries and ordering during repeated setup.
 
 = 1.11.0 =
 * Added permanent Home and New Conversation controls that reset messages and topic without closing the assistant or reloading the page.
